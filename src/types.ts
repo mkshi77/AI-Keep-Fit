@@ -22,6 +22,7 @@ export interface SetRecord {
 
 export interface Exercise {
   id: string;
+  notionPageId?: string;
   number: string;
   name: string;
   targetMuscle: string;

@@ -2,9 +2,14 @@ import React, { useState } from 'react';
 import { Exercise, BodyFeedbackRecord } from '../types';
 import { ExerciseModal } from './ExerciseModal';
 import { ReplaceExerciseModal } from './ReplaceExerciseModal';
+import type { TodayWorkout } from '../domain/workout';
 
 interface TodayViewProps {
   exercises: Exercise[];
+  workout: TodayWorkout | null;
+  isLoading?: boolean;
+  error?: string;
+  onRetry?: () => void;
   bodyFeedbacks?: BodyFeedbackRecord[];
   onStartWorkout: () => void;
   isTodayCompleted?: boolean;
@@ -15,6 +20,10 @@ interface TodayViewProps {
 
 export const TodayView: React.FC<TodayViewProps> = ({
   exercises,
+  workout,
+  isLoading = false,
+  error = '',
+  onRetry,
   bodyFeedbacks = [],
   onStartWorkout,
   isTodayCompleted = false,
@@ -24,6 +33,9 @@ export const TodayView: React.FC<TodayViewProps> = ({
 }) => {
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
   const [replacingExercise, setReplacingExercise] = useState<Exercise | null>(null);
+  const totalSets = exercises.reduce((sum, exercise) => sum + exercise.defaultSets, 0);
+  const muscles = [...new Set(exercises.map((exercise) => exercise.targetMuscle).filter(Boolean))].join(' · ');
+  const formattedDate = workout?.date ? new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: 'numeric', weekday: 'short' }).format(new Date(`${workout.date}T12:00:00`)) : '今日';
 
   // Check if any recent body feedback has discomfort (score >= 3/10)
   const hasInjuryFeedback = bodyFeedbacks.some((fb) =>
@@ -36,7 +48,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
         {/* Date & Title */}
         <div className="flex flex-col mt-1 pt-1">
           <div className="flex items-center justify-between">
-            <div className="text-xs text-neutral-400 font-medium">09月7日 · 周一</div>
+            <div className="text-xs text-neutral-400 font-medium">{formattedDate}{workout?.trainingDay ? ` · ${workout.trainingDay} 日` : ''}</div>
             {isTodayCompleted && (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#A4FF4F]/15 text-[#A4FF4F] border border-[#A4FF4F]/30">
                 <svg className="w-3 h-3 text-[#A4FF4F]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
@@ -48,8 +60,8 @@ export const TodayView: React.FC<TodayViewProps> = ({
           </div>
           <h1 className="text-2xl font-bold text-white mt-1 leading-tight tracking-tight">今天训练</h1>
           <div className="flex items-center justify-between mt-1">
-            <p className="text-sm text-neutral-300">3 个动作 · 12 组 · 约 45 分钟</p>
-            <span className="text-xs text-neutral-500 font-normal">胸 · 背 · 腿</span>
+            <p className="text-sm text-neutral-300">{exercises.length} 个动作 · {totalSets} 组</p>
+            <span className="text-xs text-neutral-500 font-normal">{muscles || '恢复日'}</span>
           </div>
         </div>
 
@@ -118,7 +130,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
             </p>
             <div className="flex items-center gap-2 pt-0.5">
               <button
-                onClick={() => setReplacingExercise(exercises[0])}
+                onClick={() => exercises[0] && setReplacingExercise(exercises[0])}
                 className="text-[11px] py-1 px-2.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-black font-semibold transition active:scale-95 cursor-pointer"
                 type="button"
               >
@@ -177,12 +189,15 @@ export const TodayView: React.FC<TodayViewProps> = ({
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-[15px] font-semibold text-white tracking-tight">今日动作</h2>
             <span className="text-xs text-neutral-500">
-              {isTodayCompleted ? '3 个动作全部完成' : '3 个动作 · 支持替换'}
+              {isTodayCompleted ? `${exercises.length} 个动作全部完成` : `${exercises.length} 个动作 · 支持替换`}
             </span>
           </div>
 
           {/* Exercises List */}
           <div className="flex flex-col gap-3">
+            {isLoading && <div className="p-4 rounded-xl bg-[#141416] border border-[#1E1E22] text-sm text-neutral-400">正在从 Notion 加载今日训练…</div>}
+            {!isLoading && error && <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-sm text-amber-200">{error}{onRetry && <button onClick={onRetry} className="ml-3 underline">重试</button>}</div>}
+            {!isLoading && !error && workout?.isRecoveryDay && <div className="p-4 rounded-xl bg-[#141416] border border-[#1E1E22] text-sm text-neutral-300">今天是恢复日，暂无训练动作。</div>}
             {exercises.map((item, index) => (
               <div
                 key={item.id}
@@ -289,7 +304,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
                 </div>
                 <div>
                   <span className="text-sm font-bold text-white tracking-tight">今日训练已圆满完成</span>
-                  <span className="text-[11px] text-neutral-400 block font-normal">3 个动作 · 12 组全部结清</span>
+                  <span className="text-[11px] text-neutral-400 block font-normal">{exercises.length} 个动作 · {totalSets} 组全部结清</span>
                 </div>
               </div>
               <span className="text-xs font-mono font-bold text-[#A4FF4F] bg-[#A4FF4F]/15 px-2 py-0.5 rounded-full">
@@ -328,7 +343,8 @@ export const TodayView: React.FC<TodayViewProps> = ({
           <button
             id="start-workout-btn"
             onClick={onStartWorkout}
-            className="w-full py-3.5 rounded-xl bg-[#A4FF4F] hover:bg-[#94ED42] active:scale-[0.98] text-black font-bold text-[16px] text-center transition-all flex items-center justify-center cursor-pointer shadow-lg shadow-[#A4FF4F]/20"
+            disabled={isLoading || Boolean(error) || exercises.length === 0}
+            className="w-full py-3.5 rounded-xl bg-[#A4FF4F] hover:bg-[#94ED42] active:scale-[0.98] text-black font-bold text-[16px] text-center transition-all flex items-center justify-center cursor-pointer shadow-lg shadow-[#A4FF4F]/20 disabled:opacity-40 disabled:cursor-not-allowed"
             type="button"
           >
             开始训练 →

@@ -3,6 +3,7 @@ import path from "path";
 import dotenv from "dotenv";
 import { GoogleGenAI } from "@google/genai";
 import { createServer as createViteServer } from "vite";
+import todayWorkoutHandler from "./api/workout/today.js";
 
 dotenv.config();
 
@@ -10,6 +11,7 @@ const app = express();
 const PORT = 3000;
 
 app.use(express.json());
+app.all('/api/workout/today', (req, res) => { void todayWorkoutHandler(req, res); });
 
 // Lazy-initialized Gemini client
 function getGeminiClient(): GoogleGenAI | null {
