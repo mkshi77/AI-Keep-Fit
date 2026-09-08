@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { Exercise, ExerciseFeedbackData } from '../types';
+import type { WorkoutDraftFeedback } from '../state/workoutDraft';
 
 interface ExerciseFeedbackViewProps {
   exercise: Exercise;
   exerciseIndex: number;
   totalExercises: number;
+  initialFeedback?: WorkoutDraftFeedback;
   onSaveFeedbackAndNext: (feedback: ExerciseFeedbackData) => void;
   onGoBackToSets: () => void;
   onExitEarly: () => void;
@@ -15,15 +17,16 @@ export const ExerciseFeedbackView: React.FC<ExerciseFeedbackViewProps> = ({
   exercise,
   exerciseIndex,
   totalExercises,
+  initialFeedback,
   onSaveFeedbackAndNext,
   onGoBackToSets,
   onExitEarly,
   onAskCoachWithDiscomfort,
 }) => {
-  const [selectedRIR, setSelectedRIR] = useState<number>(2);
-  const [selectedBalance, setSelectedBalance] = useState<'无差异' | '左侧吃力' | '右侧吃力'>('无差异');
-  const [discomfortScore, setDiscomfortScore] = useState<number>(0);
-  const [noteText, setNoteText] = useState<string>('');
+  const [selectedRIR, setSelectedRIR] = useState<number>(initialFeedback?.rir ?? 2);
+  const [selectedBalance, setSelectedBalance] = useState<'无差异' | '左侧吃力' | '右侧吃力'>(initialFeedback?.bilateralBalance ?? '无差异');
+  const [discomfortScore, setDiscomfortScore] = useState<number>(initialFeedback?.discomfortLevel ?? 0);
+  const [noteText, setNoteText] = useState<string>(initialFeedback?.note ?? '');
 
   const rirDescriptions: Record<number, string> = {
     0: '达到力竭，肌肉神经募集度极高，注意组间及训练后恢复',

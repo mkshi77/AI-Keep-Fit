@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   TabType,
   WorkoutScreen,
@@ -15,6 +15,18 @@ import {
 import { getTodayWorkout } from './services/workoutApi';
 import { adaptTodayWorkout } from './adapters/workoutAdapter';
 import type { TodayWorkout } from './domain/workout';
+import {
+  applyWorkoutDraft,
+  createWorkoutDraft,
+  loadWorkoutDraft,
+  saveWorkoutDraft,
+  setWorkoutDraftCurrentExercise,
+  setWorkoutDraftExerciseStatus,
+  summarizeWorkoutDraft,
+  updateWorkoutDraftFeedback,
+  updateWorkoutDraftSet,
+  type WorkoutDraft,
+} from './state/workoutDraft';
 import { StatusBar } from './components/StatusBar';
 import { Navigation } from './components/Navigation';
 import { TodayView } from './components/TodayView';
@@ -33,8 +45,12 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('today');
   const [workoutScreen, setWorkoutScreen] = useState<WorkoutScreen>('overview');
 
-  // Exercises State with LocalStorage Persistence
-  const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [plannedExercises, setPlannedExercises] = useState<Exercise[]>([]);
+  const [workoutDraft, setWorkoutDraft] = useState<WorkoutDraft | null>(null);
+  const exercises = useMemo(
+    () => applyWorkoutDraft(plannedExercises, workoutDraft),
+    [plannedExercises, workoutDraft],
+  );
 
   const loadWorkout = async () => {
     setIsWorkoutLoading(true);
@@ -43,14 +59,15 @@ export default function App() {
       const latest = await getTodayWorkout();
       if (latest.source !== 'notion') throw new Error(latest.warning || 'Notion 今日训练不可用');
       const adapted = adaptTodayWorkout(latest.exercises);
-      const draftKey = `keepfit_workout_draft:${latest.date}`;
-      const draft = JSON.parse(localStorage.getItem(draftKey) || '{}') as Record<string, SetRecord[]>;
-      setExercises(adapted.map((exercise) => ({ ...exercise, sets: draft[exercise.id] || exercise.sets })));
+      const restoredDraft = loadWorkoutDraft(localStorage, latest, adapted);
+      setPlannedExercises(adapted);
+      setWorkoutDraft(restoredDraft);
       setWorkout(latest);
-      setCurrentExerciseIndex(0);
+      setCurrentExerciseIndex(restoredDraft?.currentExerciseIndex ?? 0);
     } catch (cause) {
       setWorkoutError(cause instanceof Error ? cause.message : '无法加载今日训练');
-      setExercises([]);
+      setPlannedExercises([]);
+      setWorkoutDraft(null);
     } finally {
       setIsWorkoutLoading(false);
     }
@@ -59,18 +76,11 @@ export default function App() {
   useEffect(() => { void loadWorkout(); }, []);
 
   useEffect(() => {
-    if (!workout || exercises.length === 0) return;
-    localStorage.setItem(`keepfit_workout_draft:${workout.date}`, JSON.stringify(Object.fromEntries(exercises.map((exercise) => [exercise.id, exercise.sets]))));
-  }, [exercises, workout]);
+    if (workoutDraft) saveWorkoutDraft(localStorage, workoutDraft);
+  }, [workoutDraft]);
 
-  // Today Workout Completed State with LocalStorage Persistence
-  const [isTodayCompleted, setIsTodayCompleted] = useState<boolean>(() => {
-    return localStorage.getItem('keepfit_today_completed') === 'true';
-  });
-
-  useEffect(() => {
-    localStorage.setItem('keepfit_today_completed', String(isTodayCompleted));
-  }, [isTodayCompleted]);
+  // Completion remains UI state until Phase 1C formally submits the workout.
+  const [isTodayCompleted, setIsTodayCompleted] = useState(false);
 
   // Current Workout State
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState<number>(0);
@@ -134,27 +144,40 @@ export default function App() {
     return () => clearInterval(timer);
   }, []);
 
+  const moveToExercise = (index: number) => {
+    const boundedIndex = Math.max(0, Math.min(exercises.length - 1, index));
+    const exercise = exercises[boundedIndex];
+    if (!exercise) return;
+    setCurrentExerciseIndex(boundedIndex);
+    setWorkoutDraft((current) => current
+      ? setWorkoutDraftCurrentExercise(current, exercise.id, boundedIndex)
+      : current);
+  };
+
   // Handler: Start workout
   const handleStartWorkout = () => {
-    if (!exercises.length) return;
+    if (!workout || !plannedExercises.length) return;
+    const activeDraft = workoutDraft ?? createWorkoutDraft(workout, plannedExercises);
+    setWorkoutDraft(activeDraft);
+    setCurrentExerciseIndex(activeDraft.currentExerciseIndex);
     setWorkoutScreen('active');
+  };
+
+  const handleUpdateSet = (updatedSet: SetRecord) => {
+    const currentEx = exercises[currentExerciseIndex];
+    if (!currentEx) return;
+    setWorkoutDraft((current) => current
+      ? updateWorkoutDraftSet(current, currentEx.id, updatedSet)
+      : current);
   };
 
   // Handler: Complete a single set
   const handleCompleteSet = (updatedSet: SetRecord) => {
     const currentEx = exercises[currentExerciseIndex];
     if (!currentEx) return;
-
-    const newSets = currentEx.sets.map((s) =>
-      s.setNumber === updatedSet.setNumber ? updatedSet : s
-    );
-
-    const updatedExercises = exercises.map((ex, idx) =>
-      idx === currentExerciseIndex ? { ...ex, sets: newSets } : ex
-    );
-    setExercises(updatedExercises);
-
-    const isLastSet = updatedSet.setNumber >= currentEx.sets.length;
+    handleUpdateSet(updatedSet);
+    const nextSet = currentEx.sets.find((set) => set.setNumber !== updatedSet.setNumber && !set.isCompleted);
+    const isLastSet = !nextSet;
     if (isLastSet) {
       // Show exercise completion & RIR feedback screen
       setWorkoutScreen('feedback');
@@ -162,9 +185,9 @@ export default function App() {
       // Enter rest countdown
       setCompletedRestSetInfo({
         setNumber: updatedSet.setNumber,
-        nextSetNumber: updatedSet.setNumber + 1,
-        weight: updatedSet.weight,
-        reps: updatedSet.reps,
+        nextSetNumber: nextSet.setNumber,
+        weight: nextSet.weight,
+        reps: nextSet.reps,
       });
       setWorkoutScreen('rest');
     }
@@ -177,25 +200,12 @@ export default function App() {
 
   // Handler: Save exercise feedback and move to next exercise or summary
   const handleSaveFeedbackAndNext = (feedback: ExerciseFeedbackData) => {
-    // If user reported discomfort (>0), also add to bodyFeedbacks
-    if (feedback.discomfortLevel > 0) {
-      const newFeedbackRecord: BodyFeedbackRecord = {
-        id: `fb-${Date.now()}`,
-        part: feedback.exerciseName.includes('卧推')
-          ? '右肩前侧'
-          : feedback.exerciseName.includes('划船')
-          ? '上斜方肌/颈后'
-          : '膝盖周围',
-        description: `动作: ${feedback.exerciseName} · ${feedback.bilateralBalance} · ${feedback.note || '组后轻微酸胀'}`,
-        score: `${feedback.discomfortLevel}/10`,
-        scoreColor: feedback.discomfortLevel >= 5 ? 'amber' : 'green',
-        date: '09/07',
-      };
-      setBodyFeedbacks((prev) => [newFeedbackRecord, ...prev]);
-    }
+    setWorkoutDraft((current) => current
+      ? updateWorkoutDraftFeedback(current, feedback.exerciseId, feedback)
+      : current);
 
     if (currentExerciseIndex < exercises.length - 1) {
-      setCurrentExerciseIndex((prev) => prev + 1);
+      moveToExercise(currentExerciseIndex + 1);
       setWorkoutScreen('active');
     } else {
       setIsTodayCompleted(true);
@@ -205,8 +215,14 @@ export default function App() {
 
   // Handler: Skip exercise
   const handleSkipExercise = () => {
+    const currentEx = exercises[currentExerciseIndex];
+    if (currentEx) {
+      setWorkoutDraft((current) => current
+        ? setWorkoutDraftExerciseStatus(current, currentEx.id, 'skipped')
+        : current);
+    }
     if (currentExerciseIndex < exercises.length - 1) {
-      setCurrentExerciseIndex((prev) => prev + 1);
+      moveToExercise(currentExerciseIndex + 1);
     } else {
       setIsTodayCompleted(true);
       setWorkoutScreen('summary');
@@ -216,14 +232,14 @@ export default function App() {
   // Handler: Previous exercise
   const handlePrevExercise = () => {
     if (currentExerciseIndex > 0) {
-      setCurrentExerciseIndex((prev) => prev - 1);
+      moveToExercise(currentExerciseIndex - 1);
     }
   };
 
   // Handler: Next exercise
   const handleNextExercise = () => {
     if (currentExerciseIndex < exercises.length - 1) {
-      setCurrentExerciseIndex((prev) => prev + 1);
+      moveToExercise(currentExerciseIndex + 1);
     } else {
       setIsTodayCompleted(true);
       setWorkoutScreen('summary');
@@ -265,11 +281,8 @@ export default function App() {
 
   // Handler: Restart workout
   const handleRestartWorkout = () => {
-    const reset = exercises.map((ex) => ({
-      ...ex,
-      sets: ex.sets.map((s) => ({ ...s, isCompleted: false })),
-    }));
-    setExercises(reset);
+    if (!workout || !plannedExercises.length) return;
+    setWorkoutDraft(createWorkoutDraft(workout, plannedExercises, Date.now(), true));
     setCurrentExerciseIndex(0);
     setIsTodayCompleted(false);
   };
@@ -398,6 +411,8 @@ export default function App() {
 
   // Compute current exercise and set progression
   const currentEx = exercises[currentExerciseIndex] || exercises[0];
+  const currentDraftExercise = workoutDraft?.exercises.find((exercise) => exercise.exerciseId === currentEx?.id);
+  const workoutSummary = summarizeWorkoutDraft(workoutDraft);
   const completedSetsCount = exercises.reduce(
     (sum, ex) => sum + ex.sets.filter((s) => s.isCompleted).length,
     0
@@ -444,6 +459,7 @@ export default function App() {
                 onPrevExercise={handlePrevExercise}
                 onNextExercise={handleNextExercise}
                 onSkipExercise={handleSkipExercise}
+                onUpdateSet={handleUpdateSet}
                 onCompleteSet={handleCompleteSet}
                 onExitWorkout={handleExitWorkout}
                 onFinishWorkoutEarly={handleFinishWorkoutEarly}
@@ -468,9 +484,11 @@ export default function App() {
 
             {workoutScreen === 'feedback' && currentEx && (
               <ExerciseFeedbackView
+                key={currentEx.id}
                 exercise={currentEx}
                 exerciseIndex={currentExerciseIndex}
                 totalExercises={exercises.length}
+                initialFeedback={currentDraftExercise?.feedback}
                 onSaveFeedbackAndNext={handleSaveFeedbackAndNext}
                 onGoBackToSets={() => setWorkoutScreen('active')}
                 onExitEarly={handleFinishWorkoutEarly}
@@ -481,6 +499,7 @@ export default function App() {
             {workoutScreen === 'summary' && (
               <WorkoutSummaryView
                 exercises={exercises}
+                summary={workoutSummary}
                 onReturnToday={handleReturnToday}
                 onAskCoach={() => setActiveTab('coach')}
                 onSaveBodyFeedback={handleSaveSummaryBodyFeedback}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Exercise, SetRecord } from '../types';
 import { ExerciseModal } from './ExerciseModal';
 import { ReplaceExerciseModal } from './ReplaceExerciseModal';
@@ -11,6 +11,7 @@ interface ActiveWorkoutViewProps {
   onPrevExercise: () => void;
   onNextExercise: () => void;
   onSkipExercise: () => void;
+  onUpdateSet: (updatedSet: SetRecord) => void;
   onCompleteSet: (updatedSet: SetRecord) => void;
   onExitWorkout: () => void;
   onFinishWorkoutEarly: () => void;
@@ -23,6 +24,7 @@ export const ActiveWorkoutView: React.FC<ActiveWorkoutViewProps> = ({
   onPrevExercise,
   onNextExercise,
   onSkipExercise,
+  onUpdateSet,
   onCompleteSet,
   onExitWorkout,
   onFinishWorkoutEarly,
@@ -35,29 +37,21 @@ export const ActiveWorkoutView: React.FC<ActiveWorkoutViewProps> = ({
   const activeSetNumber = currentSetIndex === -1 ? currentExercise.sets.length : currentSetIndex + 1;
   const activeSet = currentExercise.sets[activeSetNumber - 1] || currentExercise.sets[0];
 
-  // Local state for weight & reps during the set
-  const [currentWeight, setCurrentWeight] = useState<number>(activeSet.weight || currentExercise.weight);
-  const [currentReps, setCurrentReps] = useState<number>(activeSet.reps || 8);
+  const currentWeight = activeSet.weight;
+  const currentReps = activeSet.reps;
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isReplaceModalOpen, setIsReplaceModalOpen] = useState(false);
   const [isConfirmExitOpen, setIsConfirmExitOpen] = useState(false);
-
-  // Sync state whenever exercise or active set changes
-  useEffect(() => {
-    if (activeSet) {
-      setCurrentWeight(activeSet.weight || currentExercise.weight);
-      setCurrentReps(activeSet.reps || 8);
-    }
-  }, [currentExercise.id, activeSetNumber]);
+  const [isConfirmSkipOpen, setIsConfirmSkipOpen] = useState(false);
 
   const handleAdjustWeight = (delta: number) => {
-    setCurrentWeight((prev) => Math.max(0, Math.round((prev + delta) * 10) / 10));
+    onUpdateSet({ ...activeSet, weight: Math.max(0, Math.round((currentWeight + delta) * 10) / 10) });
     soundManager.vibrate(25);
   };
 
   const handleAdjustReps = (delta: number) => {
-    setCurrentReps((prev) => Math.max(1, prev + delta));
+    onUpdateSet({ ...activeSet, reps: Math.max(1, currentReps + delta) });
     soundManager.vibrate(25);
   };
 
@@ -81,7 +75,7 @@ export const ActiveWorkoutView: React.FC<ActiveWorkoutViewProps> = ({
       <header className="px-5 py-2 flex items-center justify-between shrink-0">
         <div className="flex items-center space-x-2">
           <button
-            onClick={() => setIsConfirmExitOpen(true)}
+            onClick={onExitWorkout}
             aria-label="返回上一页"
             className="p-1 -ml-1 text-neutral-300 active:opacity-60 transition-opacity cursor-pointer"
             type="button"
@@ -106,7 +100,7 @@ export const ActiveWorkoutView: React.FC<ActiveWorkoutViewProps> = ({
             <span>换动作</span>
           </button>
           <button
-            onClick={() => setIsConfirmExitOpen(true)}
+            onClick={onExitWorkout}
             className="text-xs text-neutral-400 hover:text-white px-2 py-1 rounded transition-colors cursor-pointer"
             type="button"
           >
@@ -365,7 +359,7 @@ export const ActiveWorkoutView: React.FC<ActiveWorkoutViewProps> = ({
             上一动作
           </button>
           <button
-            onClick={onSkipExercise}
+            onClick={() => setIsConfirmSkipOpen(true)}
             className="py-2 px-1 bg-neutral-900 hover:bg-neutral-800 text-neutral-400 hover:text-white rounded-xl border border-white/5 transition active:scale-95 cursor-pointer"
             type="button"
           >
@@ -397,6 +391,19 @@ export const ActiveWorkoutView: React.FC<ActiveWorkoutViewProps> = ({
         cancelText="继续训练"
         onConfirm={onFinishWorkoutEarly}
         onCancel={() => setIsConfirmExitOpen(false)}
+      />
+
+      <ConfirmModal
+        isOpen={isConfirmSkipOpen}
+        title="确认跳过这个动作？"
+        description="已填写和已完成的组会保留，未完成组不会被标记为完成。"
+        confirmText="确认跳过"
+        cancelText="继续当前动作"
+        onConfirm={() => {
+          setIsConfirmSkipOpen(false);
+          onSkipExercise();
+        }}
+        onCancel={() => setIsConfirmSkipOpen(false)}
       />
 
       {/* Exercise Modal */}
