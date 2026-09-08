@@ -1,10 +1,17 @@
 import React, { useState } from 'react';
 import { Exercise } from '../types';
+import type { WorkoutCompletionResult } from '../domain/workout';
 import type { WorkoutDraftSummary } from '../state/workoutDraft';
 
 interface WorkoutSummaryViewProps {
   exercises: Exercise[];
   summary: WorkoutDraftSummary;
+  submissionState: {
+    status: 'idle' | 'submitting' | 'failed' | 'submitted';
+    error?: string;
+    result?: WorkoutCompletionResult;
+  };
+  onSubmitWorkout: () => void;
   onReturnToday: () => void;
   onAskCoach: () => void;
   onSaveBodyFeedback?: (record: { part: string; level: number; note: string }) => void;
@@ -13,6 +20,8 @@ interface WorkoutSummaryViewProps {
 export const WorkoutSummaryView: React.FC<WorkoutSummaryViewProps> = ({
   exercises,
   summary,
+  submissionState,
+  onSubmitWorkout,
   onReturnToday,
   onAskCoach,
   onSaveBodyFeedback,
@@ -24,6 +33,30 @@ export const WorkoutSummaryView: React.FC<WorkoutSummaryViewProps> = ({
   const [discomfortNote, setDiscomfortNote] = useState<string>('');
 
   const { completedSets, totalVolume, completionRate, durationMinutes } = summary;
+  const submissionResult = submissionState.status === 'submitted' ? submissionState.result : undefined;
+  const syncLabels: Record<typeof submissionState.status, string> = {
+    idle: '待同步',
+    submitting: '正在同步...',
+    failed: '同步失败',
+    submitted: '已同步',
+  };
+  const syncDescription = submissionState.status === 'failed'
+    ? (submissionState.error || '训练草稿已保留，可以重试。')
+    : submissionState.status === 'submitted'
+      ? (submissionResult?.workoutCompleted ? '训练数据已写回 Notion。' : '部分完成数据已写回 Notion。')
+      : submissionState.status === 'submitting'
+        ? '正在安全写回 Notion，请勿关闭页面。'
+        : '确认完成训练后，将数据同步到 Notion。';
+  const headline = submissionState.status === 'submitted' && !submissionResult?.workoutCompleted
+    ? '训练已结束'
+    : completionRate < 100 ? '训练已结束' : '训练完成';
+  const submitLabel = submissionState.status === 'submitted'
+    ? '已同步'
+    : submissionState.status === 'submitting'
+      ? '正在保存...'
+      : submissionState.status === 'failed'
+        ? '重试同步'
+        : completedSets === 0 ? '无可同步组' : '同步训练数据';
 
   return (
     <div className="flex-1 flex flex-col justify-between overflow-hidden select-none relative">
@@ -48,25 +81,31 @@ export const WorkoutSummaryView: React.FC<WorkoutSummaryViewProps> = ({
           </div>
 
           {/* Headline & Motto */}
-          <h1 className="text-2xl font-bold tracking-tight text-white mt-3">训练完成</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-white mt-3">{headline}</h1>
           <p className="text-sm text-neutral-300 mt-1 font-normal tracking-wide">今天长了一点 · 状态极佳</p>
         </section>
 
-        {/* Phase 1C placeholder: PR detection is not part of the Phase 1B draft. */}
-        <section className="bg-gradient-to-r from-[#A4FF4F]/15 via-[#18181B] to-[#18181B] rounded-2xl p-3.5 border border-[#A4FF4F]/30 flex items-center justify-between">
+        {/* TODO: Phase Records / PR — do not compute or display fake PRs here. */}
+        <section className="bg-[#141416] rounded-2xl p-3.5 border border-white/[0.04] flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-[#A4FF4F]/20 flex items-center justify-center text-xl shrink-0">
-              🏆
-            </div>
+            <div className="w-10 h-10 rounded-xl bg-[#A4FF4F]/10 flex items-center justify-center text-xl shrink-0">🏆</div>
             <div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-bold text-[#A4FF4F]">突破个人记录 PR!</span>
-                <span className="text-[10px] bg-[#A4FF4F]/25 text-[#A4FF4F] px-1.5 py-0.5 rounded font-mono font-semibold">+2.5kg</span>
-              </div>
-              <p className="text-xs text-neutral-300 mt-0.5 font-medium">
-                坐姿绳索划船 突破个人最佳容量，动作控制扎实
-              </p>
+              <p className="text-xs font-bold text-[#A4FF4F]">PR 记录</p>
+              <p className="text-xs text-neutral-300 mt-0.5">Phase Records / PR 接入后显示，当前为占位。</p>
             </div>
+          </div>
+        </section>
+
+        {/* Notion sync state */}
+        <section className={`bg-[#141416] rounded-2xl p-3.5 border ${submissionState.status === 'submitted' ? 'border-[#A4FF4F]/30' : submissionState.status === 'failed' ? 'border-red-400/30' : 'border-white/[0.04]'}`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className={`text-xs font-bold ${submissionState.status === 'submitted' ? 'text-[#A4FF4F]' : submissionState.status === 'failed' ? 'text-red-400' : 'text-white'}`}>
+                {syncLabels[submissionState.status]}
+              </p>
+              <p className="text-xs text-neutral-300 mt-0.5">{syncDescription}</p>
+            </div>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-semibold ${submissionState.status === 'submitted' ? 'bg-[#A4FF4F]/20 text-[#A4FF4F]' : submissionState.status === 'failed' ? 'bg-red-400/15 text-red-400' : 'bg-white/10 text-neutral-300'}`}>Notion</span>
           </div>
         </section>
 
@@ -326,22 +365,30 @@ export const WorkoutSummaryView: React.FC<WorkoutSummaryViewProps> = ({
       </main>
 
       {/* Fixed Bottom Action Bar */}
-      <footer className="absolute bottom-0 left-0 right-0 bg-[#0B0B0C]/90 backdrop-blur-md px-4 pb-7 pt-3 border-t border-white/[0.03] flex items-center space-x-3 z-30">
+      <footer className="absolute bottom-0 left-0 right-0 bg-[#0B0B0C]/90 backdrop-blur-md px-4 pb-7 pt-3 border-t border-white/[0.03] flex items-center space-x-2 z-30">
         <button
           onClick={onReturnToday}
-          className="bg-[#1C1C1E] text-white py-3.5 px-6 rounded-xl font-semibold text-sm flex-1 text-center transition-all active:scale-[0.98] border border-white/[0.04] cursor-pointer hover:bg-neutral-800"
+          className="bg-[#1C1C1E] text-white py-3.5 px-3 rounded-xl font-semibold text-sm text-center transition-all active:scale-[0.98] border border-white/[0.04] cursor-pointer hover:bg-neutral-800"
           type="button"
         >
-          返回今日
+          返回
         </button>
         <button
           onClick={onAskCoach}
-          className="bg-[#A4FF4F] text-black py-3.5 px-6 rounded-xl font-bold text-sm flex-1 text-center transition-all active:scale-[0.98] shadow-md shadow-[#A4FF4F]/15 hover:bg-[#92ef3f] cursor-pointer"
+          className="bg-[#1C1C1E] text-white py-3.5 px-4 rounded-xl font-semibold text-sm flex-1 text-center transition-all active:scale-[0.98] border border-white/[0.04] cursor-pointer hover:bg-neutral-800"
           type="button"
         >
           问教练
         </button>
-      </footer>
+        <button
+          onClick={onSubmitWorkout}
+          disabled={submissionState.status === 'submitting' || submissionState.status === 'submitted' || completedSets === 0}
+          className={`bg-[#A4FF4F] text-black py-3.5 px-4 rounded-xl font-bold text-sm flex-1 text-center transition-all active:scale-[0.98] shadow-md shadow-[#A4FF4F]/15 hover:bg-[#92ef3f] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed`}
+          type="button"
+        >
+          {submitLabel}
+        </button>
+</footer>
     </div>
   );
 };

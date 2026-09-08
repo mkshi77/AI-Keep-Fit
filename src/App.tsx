@@ -12,9 +12,10 @@ import {
   INITIAL_CHAT_MESSAGES,
   INITIAL_BODY_FEEDBACK,
 } from './data/mockData';
-import { getTodayWorkout } from './services/workoutApi';
+import { completeWorkout, getTodayWorkout } from './services/workoutApi';
 import { adaptTodayWorkout } from './adapters/workoutAdapter';
-import type { TodayWorkout } from './domain/workout';
+import type { TodayWorkout, WorkoutCompletionResult } from './domain/workout';
+import { buildWorkoutCompletionPayload } from './adapters/workoutSubmissionAdapter';
 import {
   applyWorkoutDraft,
   createWorkoutDraft,
@@ -25,8 +26,14 @@ import {
   summarizeWorkoutDraft,
   updateWorkoutDraftFeedback,
   updateWorkoutDraftSet,
+  clearWorkoutDraft,
+  setWorkoutDraftSubmission,
+  setWorkoutDraftSubmissionStatus,
   type WorkoutDraft,
+  type WorkoutSubmissionStatus,
 } from './state/workoutDraft';
+import { checkSession } from './services/authApi';
+import { AuthGate } from './components/AuthGate';
 import { StatusBar } from './components/StatusBar';
 import { Navigation } from './components/Navigation';
 import { TodayView } from './components/TodayView';
@@ -47,6 +54,12 @@ export default function App() {
 
   const [plannedExercises, setPlannedExercises] = useState<Exercise[]>([]);
   const [workoutDraft, setWorkoutDraft] = useState<WorkoutDraft | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [submission, setSubmission] = useState<{
+    status: WorkoutSubmissionStatus;
+    error?: string;
+    result?: WorkoutCompletionResult;
+  }>({ status: 'idle' });
   const exercises = useMemo(
     () => applyWorkoutDraft(plannedExercises, workoutDraft),
     [plannedExercises, workoutDraft],
@@ -73,7 +86,17 @@ export default function App() {
     }
   };
 
-  useEffect(() => { void loadWorkout(); }, []);
+  useEffect(() => {
+    let cancelled = false;
+    checkSession()
+      .then(() => { if (!cancelled) setIsAuthenticated(true); })
+      .catch(() => { if (!cancelled) setIsAuthenticated(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (isAuthenticated === true) void loadWorkout();
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (workoutDraft) saveWorkoutDraft(localStorage, workoutDraft);
@@ -208,7 +231,6 @@ export default function App() {
       moveToExercise(currentExerciseIndex + 1);
       setWorkoutScreen('active');
     } else {
-      setIsTodayCompleted(true);
       setWorkoutScreen('summary');
     }
   };
@@ -224,7 +246,6 @@ export default function App() {
     if (currentExerciseIndex < exercises.length - 1) {
       moveToExercise(currentExerciseIndex + 1);
     } else {
-      setIsTodayCompleted(true);
       setWorkoutScreen('summary');
     }
   };
@@ -241,7 +262,6 @@ export default function App() {
     if (currentExerciseIndex < exercises.length - 1) {
       moveToExercise(currentExerciseIndex + 1);
     } else {
-      setIsTodayCompleted(true);
       setWorkoutScreen('summary');
     }
   };
@@ -268,13 +288,50 @@ export default function App() {
 
   // Handler: Finish workout early
   const handleFinishWorkoutEarly = () => {
-    setIsTodayCompleted(true);
     setWorkoutScreen('summary');
+  };
+
+  const handleSubmitWorkout = async () => {
+    if (!workout || !workoutDraft || submission.status === 'submitting' || submission.status === 'submitted') return;
+    const submissionId = workoutDraft.submissionId ?? crypto.randomUUID();
+    const preparedDraft = workoutDraft.submissionId ? workoutDraft : setWorkoutDraftSubmission(workoutDraft, submissionId);
+    if (preparedDraft !== workoutDraft) setWorkoutDraft(preparedDraft);
+
+    try {
+      const payload = buildWorkoutCompletionPayload(workout, preparedDraft, plannedExercises);
+      setSubmission({ status: 'submitting' });
+      setWorkoutDraft(setWorkoutDraftSubmissionStatus(preparedDraft, 'submitting'));
+      const result = await completeWorkout(payload);
+      setSubmission({ status: 'submitted', result });
+      setWorkoutDraft(setWorkoutDraftSubmissionStatus(preparedDraft, 'submitted', { submittedAt: Date.now() }));
+
+      try {
+        const latest = await getTodayWorkout();
+        if (latest.source !== 'notion') throw new Error(latest.warning || '提交成功，但正式训练数据暂时无法重新同步');
+        setPlannedExercises(adaptTodayWorkout(latest.exercises));
+        setWorkout(latest);
+        clearWorkoutDraft(localStorage);
+        setWorkoutDraft(null);
+        setIsTodayCompleted(result.workoutCompleted);
+      } catch (syncCause) {
+        const message = syncCause instanceof Error ? syncCause.message : '提交成功，但正式训练数据重新同步失败；草稿已保留';
+        setWorkoutError(message);
+        setSubmission({ status: 'failed', error: message });
+        setWorkoutDraft((current) => current
+          ? setWorkoutDraftSubmissionStatus(current, 'failed', { lastSubmissionError: message })
+          : current);
+      }
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : '训练同步失败；草稿已保留';
+      setSubmission({ status: 'failed', error: message });
+      setWorkoutDraft((current) => current
+        ? setWorkoutDraftSubmissionStatus(current, 'failed', { lastSubmissionError: message })
+        : current);
+    }
   };
 
   // Handler: Return to today overview after summary
   const handleReturnToday = () => {
-    setIsTodayCompleted(true);
     setWorkoutScreen('overview');
     setActiveTab('today');
   };
@@ -283,6 +340,7 @@ export default function App() {
   const handleRestartWorkout = () => {
     if (!workout || !plannedExercises.length) return;
     setWorkoutDraft(createWorkoutDraft(workout, plannedExercises, Date.now(), true));
+    setSubmission({ status: 'idle' });
     setCurrentExerciseIndex(0);
     setIsTodayCompleted(false);
   };
@@ -428,6 +486,10 @@ export default function App() {
       workoutScreen === 'summary');
 
 
+  if (isAuthenticated !== true) {
+    return <AuthGate onAuthenticated={() => setIsAuthenticated(true)} />;
+  }
+
   return (
     <div className="min-h-screen w-full bg-[#050506] flex items-center justify-center font-sans antialiased text-white selection:bg-[#A4FF4F] selection:text-black">
       {/* Mobile Shell Container */}
@@ -500,6 +562,8 @@ export default function App() {
               <WorkoutSummaryView
                 exercises={exercises}
                 summary={workoutSummary}
+                submissionState={submission}
+                onSubmitWorkout={handleSubmitWorkout}
                 onReturnToday={handleReturnToday}
                 onAskCoach={() => setActiveTab('coach')}
                 onSaveBodyFeedback={handleSaveSummaryBodyFeedback}

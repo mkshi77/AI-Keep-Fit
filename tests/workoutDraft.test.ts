@@ -6,11 +6,15 @@ import {
   createWorkoutDraft,
   parseWorkoutDraft,
   restoreWorkoutDraft,
+  clearWorkoutDraft,
   setWorkoutDraftCurrentExercise,
   setWorkoutDraftExerciseStatus,
+  setWorkoutDraftSubmission,
+  setWorkoutDraftSubmissionStatus,
   summarizeWorkoutDraft,
   updateWorkoutDraftFeedback,
   updateWorkoutDraftSet,
+  WORKOUT_DRAFT_STORAGE_KEY,
 } from '../src/state/workoutDraft';
 
 const workout: TodayWorkout = {
@@ -86,5 +90,36 @@ describe('workout draft', () => {
 
   it('rejects incompatible unversioned local data', () => {
     expect(parseWorkoutDraft(JSON.stringify({ date: workout.date, exercises: {} }))).toBeNull();
+  });
+});
+
+describe('workout draft submission lifecycle', () => {
+  it('parses Phase 1C submission metadata saved by an older draft parser-compatible payload', () => {
+    const raw = JSON.stringify({
+      version: 1, date: workout.date, startedAt: 1_000, updatedAt: 2_000,
+      currentExerciseId: 'bench-press', currentExerciseIndex: 0,
+      exercises: [{ exerciseId: 'bench-press', sets: [{ setNumber: 1, weight: 40, reps: 8, completed: false }], status: 'pending' }],
+      submissionId: 'submission-1', submissionStatus: 'failed', lastSubmissionError: '网络失败',
+    });
+    expect(parseWorkoutDraft(raw)).toMatchObject({
+      submissionId: 'submission-1', submissionStatus: 'failed', lastSubmissionError: '网络失败',
+    });
+  });
+
+  it('preserves the same submissionId and data when a retry fails', () => {
+    const draft = setWorkoutDraftSubmission(createWorkoutDraft(workout, exercises), 'submission-1');
+    const failed = setWorkoutDraftSubmissionStatus(draft, 'failed', { lastSubmissionError: '网络失败' });
+    expect(failed).toMatchObject({ submissionId: 'submission-1', submissionStatus: 'failed', lastSubmissionError: '网络失败' });
+    expect(failed.exercises).toEqual(draft.exercises);
+  });
+
+  it('records submitted time and clears storage only after explicit success cleanup', () => {
+    const store = new Map<string, string>();
+    const storage = { setItem: (key: string, value: string) => store.set(key, value), removeItem: (key: string) => void store.delete(key) };
+    const draft = setWorkoutDraftSubmission(createWorkoutDraft(workout, exercises), 'submission-1');
+    const submitted = setWorkoutDraftSubmissionStatus(draft, 'submitted', { submittedAt: 9_000 }, 10_000);
+    storage.setItem(WORKOUT_DRAFT_STORAGE_KEY, JSON.stringify(submitted));
+    clearWorkoutDraft(storage);
+    expect(store.has(WORKOUT_DRAFT_STORAGE_KEY)).toBe(false);
   });
 });

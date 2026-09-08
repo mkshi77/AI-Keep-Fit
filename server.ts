@@ -4,6 +4,8 @@ import dotenv from "dotenv";
 import { GoogleGenAI } from "@google/genai";
 import { createServer as createViteServer } from "vite";
 import todayWorkoutHandler from "./api/workout/today.js";
+import completeWorkoutHandler from "./api/workout/complete.js";
+import sessionHandler from "./api/auth/session.js";
 
 dotenv.config();
 
@@ -11,7 +13,9 @@ const app = express();
 const PORT = 3000;
 
 app.use(express.json());
+app.all('/api/auth/session', (req, res) => { void sessionHandler(req, res); });
 app.all('/api/workout/today', (req, res) => { void todayWorkoutHandler(req, res); });
+app.all('/api/workout/complete', (req, res) => { void completeWorkoutHandler(req, res); });
 
 // Lazy-initialized Gemini client
 function getGeminiClient(): GoogleGenAI | null {

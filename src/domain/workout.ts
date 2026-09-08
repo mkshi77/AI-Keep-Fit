@@ -1,6 +1,6 @@
-import type { TodayExercise } from './exercise';
+import type { TodayExercise, TrainingDay } from './exercise';
 
-export type TrainingDay = 'A' | 'B' | 'C' | string;
+export type { TrainingDay, WorkoutCompletionPayload, WorkoutCompletionResult } from './exercise';
 
 export interface TodayWorkout {
   date: string;

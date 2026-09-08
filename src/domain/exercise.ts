@@ -1,13 +1,19 @@
+export type TrainingDay = 'A' | 'B' | 'C';
+
 export interface WorkoutSet {
   weight: string;
   reps: string;
   completed: boolean;
 }
 
+export type BalanceDirection = 'none' | 'left_weaker' | 'right_weaker';
+
 export interface ExerciseFeedback {
   rir?: number;
-  asymmetry?: number;
+  balanceDirection?: BalanceDirection;
+  asymmetrySeverity?: 0 | 1 | 2 | 3;
   discomfort?: number;
+  note?: string;
 }
 
 export interface ExerciseInstructions {
@@ -38,4 +44,36 @@ export interface TodayExercise {
   instructions?: ExerciseInstructions;
   savedSets?: WorkoutSet[];
   savedFeedback?: ExerciseFeedback;
+  completed?: boolean;
+  submissionId?: string;
+}
+
+export interface WorkoutCompletionExercise {
+  exerciseId: string;
+  notionPageId: string;
+  name: string;
+  sets: WorkoutSet[];
+  feedback: ExerciseFeedback;
+}
+
+export interface WorkoutCompletionPayload {
+  date: string;
+  trainingDay: TrainingDay;
+  submissionId?: string;
+  durationMinutes?: number;
+  exercises: WorkoutCompletionExercise[];
+}
+
+export type WorkoutCompletionStatus = 'completed' | 'partial' | 'skipped';
+
+export interface WorkoutCompletionResult {
+  success: true;
+  updated: number;
+  submissionId: string | null;
+  workoutCompleted: boolean;
+  exercises: Array<{
+    exerciseId: string;
+    notionPageId: string;
+    status: WorkoutCompletionStatus;
+  }>;
 }

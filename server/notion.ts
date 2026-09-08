@@ -28,6 +28,8 @@ export const queryDataSource = async (id: string, token: string, body: Record<st
   } while (cursor);
   return pages;
 };
+export const updatePageProperties = (pageId: string, token: string, properties: Record<string, unknown>) =>
+  request(`/pages/${pageId}`, token, { method: 'PATCH', body: JSON.stringify({ properties }) });
 
 const text = (value: unknown): string => Array.isArray(value) ? value.map((item) => item && typeof item === 'object' && 'plain_text' in item ? String(item.plain_text ?? '') : '').join('') : '';
 export const propertyString = (property?: NotionProperty): string => {
@@ -41,7 +43,7 @@ export const propertyString = (property?: NotionProperty): string => {
   if (property.type === 'files' && Array.isArray(value)) {
     const first = value[0];
     if (first && typeof first === 'object' && 'external' in first && first.external && typeof first.external === 'object' && 'url' in first.external) return String(first.external.url);
-    if (first && typeof first === 'object' && 'file' in first && first.file && typeof first.file === 'object' && 'url' in first.file) return String(first.file.url);
+    if (first && typeof first === 'object' && 'file' in first && typeof first.file === 'object' && 'url' in first.file) return String(first.file.url);
   }
   if (property.type === 'formula' && value && typeof value === 'object' && 'type' in value) return propertyString(value as NotionProperty);
   if (property.type === 'rollup' && value && typeof value === 'object') {

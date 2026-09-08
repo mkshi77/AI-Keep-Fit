@@ -27,6 +27,8 @@ export interface WorkoutDraftExercise {
   status: WorkoutDraftExerciseStatus;
 }
 
+export type WorkoutSubmissionStatus = 'idle' | 'submitting' | 'failed' | 'submitted';
+
 export interface WorkoutDraft {
   version: 1;
   date: string;
@@ -36,6 +38,10 @@ export interface WorkoutDraft {
   currentExerciseIndex: number;
   exercises: WorkoutDraftExercise[];
   updatedAt: number;
+  submissionId?: string;
+  submissionStatus?: WorkoutSubmissionStatus;
+  lastSubmissionError?: string;
+  submittedAt?: number;
 }
 
 export interface WorkoutDraftSummary {
@@ -79,6 +85,7 @@ export const createWorkoutDraft = (
     currentExerciseIndex: 0,
     exercises: draftExercises,
     updatedAt: now,
+    submissionStatus: 'idle',
   };
 };
 
@@ -91,6 +98,13 @@ const isDraftSet = (value: unknown): value is WorkoutDraftSet => {
 
 const DRAFT_STATUSES: WorkoutDraftExerciseStatus[] = ['pending', 'in_progress', 'completed', 'skipped'];
 const BILATERAL_BALANCES: BilateralBalance[] = ['无差异', '左侧吃力', '右侧吃力'];
+const SUBMISSION_STATUSES: WorkoutSubmissionStatus[] = ['idle', 'submitting', 'failed', 'submitted'];
+
+const hasValidSubmissionMetadata = (value: Partial<WorkoutDraft>): boolean =>
+  (value.submissionId === undefined || (typeof value.submissionId === 'string' && value.submissionId.length > 0 && value.submissionId.length <= 100))
+  && (value.submissionStatus === undefined || SUBMISSION_STATUSES.includes(value.submissionStatus as WorkoutSubmissionStatus))
+  && (value.lastSubmissionError === undefined || typeof value.lastSubmissionError === 'string')
+  && (value.submittedAt === undefined || isNumber(value.submittedAt));
 const isDraftFeedback = (value: unknown): value is WorkoutDraftFeedback => {
   if (!value || typeof value !== 'object') return false;
   const feedback = value as Partial<WorkoutDraftFeedback>;
@@ -122,7 +136,8 @@ export const parseWorkoutDraft = (raw: string | null): WorkoutDraft | null => {
       typeof value.currentExerciseId !== 'string' ||
       !Number.isInteger(value.currentExerciseIndex) ||
       !Array.isArray(value.exercises) ||
-      !value.exercises.every(isDraftExercise)
+      !value.exercises.every(isDraftExercise) ||
+      !hasValidSubmissionMetadata(value)
     ) return null;
     return value as WorkoutDraft;
   } catch {
@@ -258,6 +273,35 @@ export const setWorkoutDraftCurrentExercise = (
   currentExerciseIndex: number,
   now = Date.now(),
 ): WorkoutDraft => ({ ...draft, currentExerciseId: exerciseId, currentExerciseIndex, updatedAt: now });
+
+export const setWorkoutDraftSubmission = (
+  draft: WorkoutDraft,
+  submissionId: string,
+  now = Date.now(),
+): WorkoutDraft => ({
+  ...draft,
+  submissionId,
+  submissionStatus: 'idle',
+  lastSubmissionError: undefined,
+  updatedAt: now,
+});
+
+export const setWorkoutDraftSubmissionStatus = (
+  draft: WorkoutDraft,
+  status: WorkoutSubmissionStatus,
+  data: { lastSubmissionError?: string; submittedAt?: number } = {},
+  now = Date.now(),
+): WorkoutDraft => ({
+  ...draft,
+  submissionStatus: status,
+  ...(status === 'failed' ? { lastSubmissionError: data.lastSubmissionError } : {}),
+  ...(status === 'submitted' && data.submittedAt ? { submittedAt: data.submittedAt } : {}),
+  updatedAt: now,
+});
+
+export const clearWorkoutDraft = (storage: Pick<Storage, 'removeItem'>) => {
+  storage.removeItem(WORKOUT_DRAFT_STORAGE_KEY);
+};
 
 export const summarizeWorkoutDraft = (draft: WorkoutDraft | null, now = Date.now()): WorkoutDraftSummary => {
   if (!draft) return { completedSets: 0, totalPlannedSets: 0, totalVolume: 0, completionRate: 0, durationMinutes: 0 };
