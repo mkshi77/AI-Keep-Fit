@@ -178,8 +178,8 @@ export const completionProperties = (
   const properties: Record<string, unknown> = {};
   for (let index = 0; index < MAX_OFFICIAL_SETS; index += 1) {
     const set = officialSets[index];
-    properties[`第${index + 1}组重量kg`] = { number: numericValue(set?.weight) };
-    properties[`第${index + 1}组次数`] = { number: numericValue(set?.reps) };
+    properties[`第${index + 1}组重量kg`] = { number: set?.completed ? numericValue(set.weight) : null };
+    properties[`第${index + 1}组次数`] = { number: set?.completed ? numericValue(set.reps) : null };
   }
   properties['末组RIR'] = { number: feedback.rir ?? null };
   properties['左右差异'] = { number: feedback.asymmetrySeverity ?? null };
@@ -218,8 +218,12 @@ export const validateCompletionPayload = (body: unknown): WorkoutCompletionPaylo
     item.sets.forEach((set) => {
       if (!set || typeof set !== 'object' || typeof set.weight !== 'string' || typeof set.reps !== 'string' || typeof set.completed !== 'boolean') throw new Error('组数据格式无效');
       if (set.weight.length > 20 || set.reps.length > 20) throw new Error('组数据长度超出限制');
-      numericValue(set.weight);
-      numericValue(set.reps);
+      if (set.completed) {
+        const weight = numericValue(set.weight);
+        const reps = numericValue(set.reps);
+        if (weight == null) throw new Error('完成组必须包含有效重量');
+        if (reps == null || reps <= 0 || !Number.isInteger(reps)) throw new Error('完成组必须包含有效次数');
+      }
     });
     if (item.feedback.rir != null && (item.feedback.rir < 0 || item.feedback.rir > 10)) throw new Error('RIR 超出范围');
     if (item.feedback.balanceDirection && !BALANCE_DIRECTIONS.includes(item.feedback.balanceDirection)) throw new Error('左右差异方向无效');
@@ -240,6 +244,9 @@ export const completeWorkoutInNotion = async (payload: WorkoutCompletionPayload)
     fetchTodayWorkoutFromNotion(payload.date, token, trainingId, exerciseId),
   ]);
   if (today.source !== 'notion') throw new Error('Notion 今日计划不可用，无法安全写回');
+  const submissionPropertyName = findSchemaProperty(schema.properties, PROPERTY.submissionId);
+  const submissionProperty = submissionPropertyName ? schema.properties[submissionPropertyName] : undefined;
+  if (!submissionPropertyName || !submissionProperty || submissionProperty.type !== 'rich_text') throw new Error('Training Execution 属性 Submission ID 必须为 Rich Text');
   const requiredProperties = [
     '第1组重量kg', '第1组次数', '第2组重量kg', '第2组次数', '第3组重量kg', '第3组次数', '第4组重量kg', '第4组次数',
     '末组RIR', '左右差异', '不适0-10', '完成', 'Submission ID',
@@ -249,10 +256,14 @@ export const completeWorkoutInNotion = async (payload: WorkoutCompletionPayload)
   requiredPageProperties(schema.properties, requiredProperties);
   const todayByPage = new Map(today.exercises.map((exercise) => [exercise.notionPageId, exercise]));
   const statuses: Array<{ exerciseId: string; notionPageId: string; status: WorkoutCompletionStatus }> = [];
+  const priorCompletedStatuses: typeof statuses = [];
   for (const exercise of payload.exercises) {
     const planned = todayByPage.get(exercise.notionPageId);
     if (planned?.exerciseId !== exercise.exerciseId) throw new Error(`动作 ${exercise.exerciseId} 不属于今日有效计划`);
-    if (payload.submissionId && planned.submissionId === payload.submissionId && planned.completed) continue;
+    if (payload.submissionId && planned.submissionId === payload.submissionId && planned.completed) {
+      priorCompletedStatuses.push({ exerciseId: exercise.exerciseId, notionPageId: exercise.notionPageId, status: 'completed' });
+      continue;
+    }
     statuses.push({ exerciseId: exercise.exerciseId, notionPageId: exercise.notionPageId, status: exerciseCompletionStatus(exercise.sets, planned.planSets) });
   }
   if (!statuses.length) {
@@ -262,13 +273,12 @@ export const completeWorkoutInNotion = async (payload: WorkoutCompletionPayload)
     const exercise = payload.exercises.find((item) => item.notionPageId === status.notionPageId)!;
     return updatePageProperties(status.notionPageId, token, completionProperties(exercise.sets, exercise.feedback));
   }));
-  const submissionPropertyName = findSchemaProperty(schema.properties, PROPERTY.submissionId);
-  const submissionProperty = submissionPropertyName ? schema.properties[submissionPropertyName] : undefined;
   await Promise.all(statuses.map((status) => {
     const properties: Record<string, unknown> = { 完成: { checkbox: status.status === 'completed' } };
     if (submissionPropertyName && payload.submissionId && submissionProperty?.type === 'rich_text') properties[submissionPropertyName] = { rich_text: [{ text: { content: payload.submissionId } }] };
     return updatePageProperties(status.notionPageId, token, properties);
   }));
-  const workoutCompleted = statuses.length === today.exercises.length && statuses.every((status) => status.status === 'completed');
+  const finalStatuses = [...priorCompletedStatuses, ...statuses];
+  const workoutCompleted = finalStatuses.length === today.exercises.length && finalStatuses.every((status) => status.status === 'completed');
   return { success: true, updated: statuses.length, submissionId: payload.submissionId, workoutCompleted, exercises: statuses };
 };

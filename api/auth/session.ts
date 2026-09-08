@@ -7,7 +7,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     response.setHeader('Allow', 'GET, POST, DELETE');
     return response.status(405).json({ error: 'Method not allowed' });
   }
-  if (request.method !== 'POST' && !isAllowedBrowserOrigin(request)) {
+  if ((request.method === 'POST' || request.method === 'DELETE') && !isAllowedBrowserOrigin(request)) {
     return response.status(403).json({ error: '不允许的请求来源' });
   }
 
