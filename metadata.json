@@ -1,0 +1,6 @@
+{
+  "name": "Keep Fit",
+  "description": "智能力量训练与健身记录追踪应用，提供实时组间休息倒计时、动作评定与AI教练即时指导。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
