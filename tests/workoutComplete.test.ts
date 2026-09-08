@@ -9,7 +9,7 @@ const notion = vi.hoisted(() => ({
 
 vi.mock('../server/notion', async (importOriginal) => ({ ...await importOriginal(), ...notion }));
 
-import { completeWorkoutInNotion, exerciseCompletionStatus, validateCompletionPayload } from '../server/workout';
+import { completeWorkoutInNotion, exerciseCompletionStatus, joinWorkoutPages, validateCompletionPayload } from '../server/workout';
 import { retrieveDataSource, updatePageProperties, queryDataSource } from '../server/notion';
 
 const text = (value: string) => ({ type: 'rich_text', rich_text: [{ plain_text: value }] });
@@ -121,7 +121,7 @@ describe('Notion workout write-back', () => {
       左右差异方向: { select: { name: '左侧吃力' } },
       动作反馈备注: { rich_text: [{ text: { content: '左侧轻微吃力' } }] },
     });
-    expect(setUpdate?.['左右差异']).toEqual({ number: null });
+    expect(setUpdate?.['左右差异']).toBeUndefined();
     expect(statusUpdate).toMatchObject({ 完成: { checkbox: true }, 'Submission ID': { rich_text: [{ text: { content: 'submission-1' } }] } });
   });
 
@@ -164,5 +164,66 @@ describe('Notion workout write-back', () => {
     } : librarySchema);
     await expect(completeWorkoutInNotion(payload)).rejects.toThrow('缺少属性: 左右差异方向, 动作反馈备注');
     expect(updatePageProperties).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('Production asymmetry schema compatibility', () => {
+  const schemaWithAsymmetry = (type: 'select' | 'number'): NotionDataSource => ({
+    properties: { ...trainingSchema.properties, 左右差异: { type } },
+  });
+  const configureAsymmetrySchema = (type: 'select' | 'number') => {
+    notion.retrieveDataSource.mockImplementation(async (id: string) => id === 'training' ? schemaWithAsymmetry(type) : librarySchema);
+  };
+
+  it('omits severity when only direction is submitted', async () => {
+    configureAsymmetrySchema('select');
+    await completeWorkoutInNotion(payload);
+    const setUpdate = vi.mocked(updatePageProperties).mock.calls
+      .map(([, , properties]) => properties as Record<string, unknown>)
+      .find((properties) => properties['第1组重量kg']);
+    expect(setUpdate).toMatchObject({ 左右差异方向: { select: { name: '左侧吃力' } } });
+    expect(setUpdate?.['左右差异']).toBeUndefined();
+  });
+
+  it('writes severity 2 as a production select', async () => {
+    configureAsymmetrySchema('select');
+    await completeWorkoutInNotion({
+      ...payload,
+      exercises: [{ ...payload.exercises[0], feedback: { ...payload.exercises[0].feedback, asymmetrySeverity: 2 } }],
+    });
+    const setUpdate = vi.mocked(updatePageProperties).mock.calls
+      .map(([, , properties]) => properties as Record<string, unknown>)
+      .find((properties) => properties['第1组重量kg']);
+    expect(setUpdate?.['左右差异']).toEqual({ select: { name: '2 明显' } });
+  });
+
+  it('writes severity 2 as a number', async () => {
+    configureAsymmetrySchema('number');
+    await completeWorkoutInNotion({
+      ...payload,
+      exercises: [{ ...payload.exercises[0], feedback: { ...payload.exercises[0].feedback, asymmetrySeverity: 2 } }],
+    });
+    const setUpdate = vi.mocked(updatePageProperties).mock.calls
+      .map(([, , properties]) => properties as Record<string, unknown>)
+      .find((properties) => properties['第1组重量kg']);
+    expect(setUpdate?.['左右差异']).toEqual({ number: 2 });
+  });
+
+  it('round-trips a production select severity', () => {
+    const training = trainingPage({ 左右差异: { type: 'select', select: { name: '2 明显' } } });
+    const workout = joinWorkoutPages('2026-09-08', [training], [libraryPage]);
+    expect(workout.exercises[0].savedFeedback).toMatchObject({ asymmetrySeverity: 2 });
+  });
+
+  it('does not clear an existing severity when no severity is submitted', async () => {
+    configureAsymmetrySchema('select');
+    const existingSeverity = { type: 'select', select: { name: '2 明显' } };
+    notion.queryDataSource.mockImplementation(async (id: string) => id === 'training' ? [trainingPage({ 左右差异: existingSeverity })] : [libraryPage]);
+    await completeWorkoutInNotion(payload);
+    const setUpdate = vi.mocked(updatePageProperties).mock.calls
+      .map(([, , properties]) => properties as Record<string, unknown>)
+      .find((properties) => properties['第1组重量kg']);
+    expect(setUpdate?.['左右差异']).toBeUndefined();
   });
 });

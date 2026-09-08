@@ -3,7 +3,7 @@ import type {
   WorkoutCompletionExercise, WorkoutCompletionPayload, WorkoutCompletionResult, WorkoutCompletionStatus,
 } from '../src/domain/exercise.js';
 import type { TodayWorkout } from '../src/domain/workout.js';
-import { findSchemaProperty, firstBoolean, firstNumber, firstString, type NotionDataSource, type NotionPage, queryDataSource, retrieveDataSource, updatePageProperties } from './notion.js';
+import { findSchemaProperty, firstBoolean, firstNumber, firstProperty, firstString, propertyNumber, propertyString, type NotionDataSource, type NotionPage, queryDataSource, retrieveDataSource, updatePageProperties } from './notion.js';
 
 const MAX_OFFICIAL_SETS = 4;
 
@@ -28,6 +28,9 @@ const PROPERTY = {
 const BALANCE_DIRECTIONS: BalanceDirection[] = ['none', 'left_weaker', 'right_weaker'];
 const BALANCE_DIRECTION_LABELS: Record<BalanceDirection, string> = {
   none: '无差异', left_weaker: '左侧吃力', right_weaker: '右侧吃力',
+};
+const ASYMMETRY_SEVERITY_LABELS: Record<ExerciseFeedback['asymmetrySeverity'], string> = {
+  0: '0 无明显差异', 1: '1 轻微', 2: '2 明显', 3: '3 已影响动作',
 };
 
 export const dateInTimeZone = (timeZone = process.env.APP_TIME_ZONE || 'Asia/Shanghai') => new Intl.DateTimeFormat('en-CA', {
@@ -70,10 +73,20 @@ const savedBalanceDirection = (value: string): BalanceDirection | undefined => {
   return undefined;
 };
 
+const savedAsymmetrySeverity = (properties: NotionPage['properties']): ExerciseFeedback['asymmetrySeverity'] | undefined => {
+  const property = firstProperty(properties, PROPERTY.asymmetry);
+  if (property?.type === 'number') return propertyNumber(property) as ExerciseFeedback['asymmetrySeverity'];
+  if (property?.type === 'select' || property?.type === 'status') {
+    const severity = Number.parseInt(propertyString(property), 10);
+    return [0, 1, 2, 3].includes(severity) ? severity as ExerciseFeedback['asymmetrySeverity'] : undefined;
+  }
+  return undefined;
+};
+
 const savedFeedback = (properties: NotionPage['properties']): ExerciseFeedback => ({
   rir: firstNumber(properties, PROPERTY.rir),
   balanceDirection: savedBalanceDirection(firstString(properties, PROPERTY.balanceDirection)),
-  asymmetrySeverity: firstNumber(properties, PROPERTY.asymmetry) as ExerciseFeedback['asymmetrySeverity'],
+  asymmetrySeverity: savedAsymmetrySeverity(properties),
   discomfort: firstNumber(properties, PROPERTY.discomfort),
   note: firstString(properties, PROPERTY.note) || undefined,
 });
@@ -173,6 +186,7 @@ const numericValue = (value: string | undefined) => {
 export const completionProperties = (
   sets: { weight: string; reps: string; completed: boolean }[],
   feedback: ExerciseFeedback,
+  schema?: NotionDataSource['properties'],
 ) => {
   const officialSets = sets.slice(0, MAX_OFFICIAL_SETS);
   const properties: Record<string, unknown> = {};
@@ -182,7 +196,13 @@ export const completionProperties = (
     properties[`第${index + 1}组次数`] = { number: set?.completed ? numericValue(set.reps) : null };
   }
   properties['末组RIR'] = { number: feedback.rir ?? null };
-  properties['左右差异'] = { number: feedback.asymmetrySeverity ?? null };
+  if (feedback.asymmetrySeverity != null) {
+    const propertyName = schema ? findSchemaProperty(schema, PROPERTY.asymmetry) : undefined;
+    const propertyType = propertyName && schema ? schema[propertyName]?.type : undefined;
+    if (!propertyName || (propertyType !== 'select' && propertyType !== 'number')) throw new Error('Training Execution 属性 左右差异 必须为 Select 或 Number');
+    if (propertyType === 'select') properties[propertyName] = { select: { name: ASYMMETRY_SEVERITY_LABELS[feedback.asymmetrySeverity] } };
+    else properties[propertyName] = { number: feedback.asymmetrySeverity };
+  }
   properties['不适0-10'] = { number: feedback.discomfort ?? null };
   if (feedback.balanceDirection) properties['左右差异方向'] = { select: { name: BALANCE_DIRECTION_LABELS[feedback.balanceDirection] } };
   if (feedback.note) properties['动作反馈备注'] = { rich_text: [{ text: { content: feedback.note } }] };
@@ -249,11 +269,17 @@ export const completeWorkoutInNotion = async (payload: WorkoutCompletionPayload)
   if (!submissionPropertyName || !submissionProperty || submissionProperty.type !== 'rich_text') throw new Error('Training Execution 属性 Submission ID 必须为 Rich Text');
   const requiredProperties = [
     '第1组重量kg', '第1组次数', '第2组重量kg', '第2组次数', '第3组重量kg', '第3组次数', '第4组重量kg', '第4组次数',
-    '末组RIR', '左右差异', '不适0-10', '完成', 'Submission ID',
+    '末组RIR', '不适0-10', '完成', 'Submission ID',
   ];
+  if (payload.exercises.some((exercise) => exercise.feedback.asymmetrySeverity != null)) requiredProperties.push('左右差异');
   if (payload.exercises.some((exercise) => exercise.feedback.balanceDirection)) requiredProperties.push('左右差异方向');
   if (payload.exercises.some((exercise) => exercise.feedback.note)) requiredProperties.push('动作反馈备注');
   requiredPageProperties(schema.properties, requiredProperties);
+  if (payload.exercises.some((exercise) => exercise.feedback.asymmetrySeverity != null)) {
+    const asymmetryPropertyName = findSchemaProperty(schema.properties, PROPERTY.asymmetry);
+    const asymmetryPropertyType = asymmetryPropertyName ? schema.properties[asymmetryPropertyName]?.type : undefined;
+    if (asymmetryPropertyType !== 'select' && asymmetryPropertyType !== 'number') throw new Error('Training Execution 属性 左右差异 必须为 Select 或 Number');
+  }
   const todayByPage = new Map(today.exercises.map((exercise) => [exercise.notionPageId, exercise]));
   const statuses: Array<{ exerciseId: string; notionPageId: string; status: WorkoutCompletionStatus }> = [];
   const priorCompletedStatuses: typeof statuses = [];
@@ -271,7 +297,7 @@ export const completeWorkoutInNotion = async (payload: WorkoutCompletionPayload)
   }
   await Promise.all(statuses.map((status) => {
     const exercise = payload.exercises.find((item) => item.notionPageId === status.notionPageId)!;
-    return updatePageProperties(status.notionPageId, token, completionProperties(exercise.sets, exercise.feedback));
+    return updatePageProperties(status.notionPageId, token, completionProperties(exercise.sets, exercise.feedback, schema.properties));
   }));
   await Promise.all(statuses.map((status) => {
     const properties: Record<string, unknown> = { 完成: { checkbox: status.status === 'completed' } };
