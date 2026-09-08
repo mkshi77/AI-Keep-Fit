@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { Exercise } from '../types';
+import type { WorkoutDraftSummary } from '../state/workoutDraft';
 
 interface WorkoutSummaryViewProps {
   exercises: Exercise[];
+  summary: WorkoutDraftSummary;
   onReturnToday: () => void;
   onAskCoach: () => void;
   onSaveBodyFeedback?: (record: { part: string; level: number; note: string }) => void;
@@ -10,6 +12,7 @@ interface WorkoutSummaryViewProps {
 
 export const WorkoutSummaryView: React.FC<WorkoutSummaryViewProps> = ({
   exercises,
+  summary,
   onReturnToday,
   onAskCoach,
   onSaveBodyFeedback,
@@ -20,17 +23,7 @@ export const WorkoutSummaryView: React.FC<WorkoutSummaryViewProps> = ({
   const [discomfortScore, setDiscomfortScore] = useState<number>(3);
   const [discomfortNote, setDiscomfortNote] = useState<string>('');
 
-  // Calculate aggregate stats
-  const completedSets = exercises.flatMap((ex) => ex.sets.filter((s) => s.isCompleted));
-  const totalSets = completedSets.length > 0 ? completedSets.length : 12;
-
-  // Calculate Total Volume (吨位 / 总容量: sum of weight * reps)
-  const totalVolume = completedSets.length > 0
-    ? completedSets.reduce((sum, s) => sum + s.weight * s.reps, 0)
-    : exercises.reduce(
-        (sum, ex) => sum + ex.sets.reduce((sSum, s) => sSum + (s.weight || ex.weight) * (s.reps || 10), 0),
-        0
-      );
+  const { completedSets, totalVolume, completionRate, durationMinutes } = summary;
 
   return (
     <div className="flex-1 flex flex-col justify-between overflow-hidden select-none relative">
@@ -59,7 +52,7 @@ export const WorkoutSummaryView: React.FC<WorkoutSummaryViewProps> = ({
           <p className="text-sm text-neutral-300 mt-1 font-normal tracking-wide">今天长了一点 · 状态极佳</p>
         </section>
 
-        {/* PR Milestone Achievement Card */}
+        {/* Phase 1C placeholder: PR detection is not part of the Phase 1B draft. */}
         <section className="bg-gradient-to-r from-[#A4FF4F]/15 via-[#18181B] to-[#18181B] rounded-2xl p-3.5 border border-[#A4FF4F]/30 flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-xl bg-[#A4FF4F]/20 flex items-center justify-center text-xl shrink-0">
@@ -82,7 +75,7 @@ export const WorkoutSummaryView: React.FC<WorkoutSummaryViewProps> = ({
           <div className="bg-[#141416] rounded-2xl py-3 px-1.5 flex flex-col items-center justify-center border border-white/[0.04]">
             <div className="flex items-baseline space-x-0.5">
               <span className="text-lg font-extrabold text-white tracking-tight leading-none tabular-nums">
-                {totalSets}
+                {completedSets}
               </span>
               <span className="text-[10px] text-neutral-400">组</span>
             </div>
@@ -102,7 +95,7 @@ export const WorkoutSummaryView: React.FC<WorkoutSummaryViewProps> = ({
           <div className="bg-[#141416] rounded-2xl py-3 px-1.5 flex flex-col items-center justify-center border border-white/[0.04]">
             <div className="flex items-baseline space-x-0.5">
               <span className="text-lg font-extrabold text-white tracking-tight leading-none tabular-nums">
-                48
+                {durationMinutes}
               </span>
               <span className="text-[10px] text-neutral-400">分</span>
             </div>
@@ -112,14 +105,14 @@ export const WorkoutSummaryView: React.FC<WorkoutSummaryViewProps> = ({
           <div className="bg-[#141416] rounded-2xl py-3 px-1.5 flex flex-col items-center justify-center border border-white/[0.04]">
             <div className="flex items-baseline">
               <span className="text-lg font-extrabold text-[#A4FF4F] tracking-tight leading-none tabular-nums">
-                100%
+                {completionRate}%
               </span>
             </div>
             <span className="text-[11px] text-neutral-400 mt-1">完成率</span>
           </div>
         </section>
 
-        {/* AI Coach Review */}
+        {/* Phase 1C placeholder: the existing AI review copy is not generated from the draft yet. */}
         <section className="bg-[#141416] rounded-2xl p-4 border border-white/[0.04] relative">
           <div className="flex items-center space-x-1.5 mb-2">
             <div className="w-4 h-4 rounded-full bg-[#A4FF4F]/20 flex items-center justify-center">
@@ -137,7 +130,7 @@ export const WorkoutSummaryView: React.FC<WorkoutSummaryViewProps> = ({
           </p>
         </section>
 
-        {/* 3-Second Post-Workout Body Status Check-in */}
+        {/* Phase 1C placeholder: this body check-in remains local UI state and is not a formal submission. */}
         <section className="bg-[#141416] rounded-2xl p-4 border border-white/[0.04]">
           <div className="flex items-center justify-between mb-2.5">
             <div className="flex items-center space-x-2">
@@ -282,11 +275,10 @@ export const WorkoutSummaryView: React.FC<WorkoutSummaryViewProps> = ({
           <h2 className="text-sm font-semibold text-neutral-400 mb-2 ml-0.5">主要数据</h2>
           <div className="space-y-2">
             {exercises.map((ex, idx) => {
-              const maxWeight = Math.max(...ex.sets.map((s) => s.weight), ex.weight);
-              const completedCount = ex.sets.filter((s) => s.isCompleted).length || ex.defaultSets;
-              const exVolume = ex.sets
-                .filter((s) => s.isCompleted)
-                .reduce((s, item) => s + item.weight * item.reps, 0) || ex.weight * ex.defaultSets * 10;
+              const completedExerciseSets = ex.sets.filter((set) => set.isCompleted);
+              const maxWeight = completedExerciseSets.length ? Math.max(...completedExerciseSets.map((set) => set.weight)) : 0;
+              const completedCount = completedExerciseSets.length;
+              const exVolume = completedExerciseSets.reduce((sum, item) => sum + item.weight * item.reps, 0);
 
               return (
                 <article
