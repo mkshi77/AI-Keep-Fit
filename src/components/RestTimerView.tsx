@@ -26,13 +26,18 @@ export const RestTimerView: React.FC<RestTimerViewProps> = ({
   const [totalSeconds, setTotalSeconds] = useState(initialSeconds);
   const [remainingSeconds, setRemainingSeconds] = useState(initialSeconds);
   const [isSoundMuted, setIsSoundMuted] = useState(!soundManager.soundEnabled);
+  // Keep track of sound already played for 3, 2, 1.
+  const playedBeepRef = useRef<{ [sec: number]: boolean }>({});
+
+  useEffect(() => {
+    setTotalSeconds(initialSeconds);
+    setRemainingSeconds(initialSeconds);
+    playedBeepRef.current = {};
+  }, [initialSeconds, exercise.id]);
 
   // SVG parameters
   const radius = 130;
   const circumference = 2 * Math.PI * radius; // 816.81
-
-  // Keep track of sound already played for 3, 2, 1
-  const playedBeepRef = useRef<{ [sec: number]: boolean }>({});
 
   useEffect(() => {
     const interval = setInterval(() => {

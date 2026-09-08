@@ -9,10 +9,12 @@ import {
   ExerciseFeedbackData,
 } from './types';
 import {
-  INITIAL_EXERCISES,
   INITIAL_CHAT_MESSAGES,
   INITIAL_BODY_FEEDBACK,
 } from './data/mockData';
+import { getTodayWorkout } from './services/workoutApi';
+import { adaptTodayWorkout } from './adapters/workoutAdapter';
+import type { TodayWorkout } from './domain/workout';
 import { StatusBar } from './components/StatusBar';
 import { Navigation } from './components/Navigation';
 import { TodayView } from './components/TodayView';
@@ -24,26 +26,42 @@ import { RecordsView } from './components/RecordsView';
 import { CoachView } from './components/CoachView';
 
 export default function App() {
+  const [workout, setWorkout] = useState<TodayWorkout | null>(null);
+  const [workoutError, setWorkoutError] = useState('');
+  const [isWorkoutLoading, setIsWorkoutLoading] = useState(false);
   // Navigation State
   const [activeTab, setActiveTab] = useState<TabType>('today');
   const [workoutScreen, setWorkoutScreen] = useState<WorkoutScreen>('overview');
 
   // Exercises State with LocalStorage Persistence
-  const [exercises, setExercises] = useState<Exercise[]>(() => {
-    const saved = localStorage.getItem('keepfit_exercises');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error(e);
-      }
+  const [exercises, setExercises] = useState<Exercise[]>([]);
+
+  const loadWorkout = async () => {
+    setIsWorkoutLoading(true);
+    setWorkoutError('');
+    try {
+      const latest = await getTodayWorkout();
+      if (latest.source !== 'notion') throw new Error(latest.warning || 'Notion 今日训练不可用');
+      const adapted = adaptTodayWorkout(latest.exercises);
+      const draftKey = `keepfit_workout_draft:${latest.date}`;
+      const draft = JSON.parse(localStorage.getItem(draftKey) || '{}') as Record<string, SetRecord[]>;
+      setExercises(adapted.map((exercise) => ({ ...exercise, sets: draft[exercise.id] || exercise.sets })));
+      setWorkout(latest);
+      setCurrentExerciseIndex(0);
+    } catch (cause) {
+      setWorkoutError(cause instanceof Error ? cause.message : '无法加载今日训练');
+      setExercises([]);
+    } finally {
+      setIsWorkoutLoading(false);
     }
-    return INITIAL_EXERCISES;
-  });
+  };
+
+  useEffect(() => { void loadWorkout(); }, []);
 
   useEffect(() => {
-    localStorage.setItem('keepfit_exercises', JSON.stringify(exercises));
-  }, [exercises]);
+    if (!workout || exercises.length === 0) return;
+    localStorage.setItem(`keepfit_workout_draft:${workout.date}`, JSON.stringify(Object.fromEntries(exercises.map((exercise) => [exercise.id, exercise.sets]))));
+  }, [exercises, workout]);
 
   // Today Workout Completed State with LocalStorage Persistence
   const [isTodayCompleted, setIsTodayCompleted] = useState<boolean>(() => {
@@ -118,6 +136,7 @@ export default function App() {
 
   // Handler: Start workout
   const handleStartWorkout = () => {
+    if (!exercises.length) return;
     setWorkoutScreen('active');
   };
 
@@ -284,7 +303,7 @@ export default function App() {
 
     try {
       const currentEx = exercises[currentExerciseIndex] || exercises[0];
-      const completedSets = currentEx.sets.filter((s) => s.isCompleted).length;
+      const completedSets = currentEx?.sets.filter((s) => s.isCompleted).length ?? 0;
 
       const res = await fetch('/api/coach', {
         method: 'POST',
@@ -296,11 +315,11 @@ export default function App() {
             text: m.text,
           })),
           context: {
-            currentExercise: currentEx.name,
+            currentExercise: currentEx?.name || '暂无训练',
             currentSet: completedSets + 1,
-            totalSets: currentEx.sets.length,
-            weight: currentEx.weight,
-            targetReps: currentEx.repRange,
+            totalSets: currentEx?.sets.length ?? 0,
+            weight: currentEx?.weight ?? 0,
+            targetReps: currentEx?.repRange || '',
           },
         }),
       });
@@ -393,6 +412,7 @@ export default function App() {
       workoutScreen === 'feedback' ||
       workoutScreen === 'summary');
 
+
   return (
     <div className="min-h-screen w-full bg-[#050506] flex items-center justify-center font-sans antialiased text-white selection:bg-[#A4FF4F] selection:text-black">
       {/* Mobile Shell Container */}
@@ -406,6 +426,10 @@ export default function App() {
             {workoutScreen === 'overview' && (
               <TodayView
                 exercises={exercises}
+                workout={workout}
+                isLoading={isWorkoutLoading}
+                error={workoutError}
+                onRetry={loadWorkout}
                 onStartWorkout={handleStartWorkout}
                 isTodayCompleted={isTodayCompleted}
                 onViewSummary={handleViewSummary}
@@ -426,9 +450,10 @@ export default function App() {
               />
             )}
 
-            {workoutScreen === 'rest' && (
+            {workoutScreen === 'rest' && currentEx && (
               <RestTimerView
                 exercise={currentEx}
+                initialSeconds={currentEx.restSeconds}
                 completedSetNumber={completedRestSetInfo.setNumber}
                 nextSetNumber={completedRestSetInfo.nextSetNumber}
                 nextWeight={completedRestSetInfo.weight}
@@ -441,7 +466,7 @@ export default function App() {
               />
             )}
 
-            {workoutScreen === 'feedback' && (
+            {workoutScreen === 'feedback' && currentEx && (
               <ExerciseFeedbackView
                 exercise={currentEx}
                 exerciseIndex={currentExerciseIndex}
@@ -483,7 +508,7 @@ export default function App() {
             onConfirmFeedback={handleConfirmFeedback}
             onNewChat={handleNewChat}
             currentWorkoutContext={{
-              currentExercise: currentEx.name,
+              currentExercise: currentEx?.name || '暂无训练',
               currentSet: completedSetsCount || 6,
               totalSets: totalWorkoutSets || 12,
             }}
