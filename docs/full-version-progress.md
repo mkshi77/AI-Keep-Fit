@@ -1,31 +1,30 @@
 # AI-Keep-Fit Full Version Progress
 
 ## Current Phase
-Phase 2A - History Foundation
+Phase 2B - Records / Analytics
 
 Phase 2A resumed after Codex transport/parser interruption.
 Recovered from existing working tree; no reset performed.
 
 ## Current Branch
-integration/phase-2a-history-foundation
+integration/phase-2b-records-analytics
 
 ## Completed Phases
 - Phase 1A - PASS
 - Phase 1B - PASS
 - Phase 1C - PASS
+- Phase 2A - PASS + merged (PR #4, merge `02f249bde8cf794ca74d0aecade234e8866929d9`)
 
 ## Current Tasks
-- [x] Create progress persistence
-- [x] Implement WorkoutHistorySession domain
-- [x] Implement bounded Notion history aggregation
-- [x] Add /api/records/history
-- [x] Add /api/records/overview
-- [x] Add /api/records/body-feedback
+- [x] Audit RecordsView data dependencies and preserve the existing UI
+- [x] Define the Records / Analytics adapter boundary
+- [x] Replace Production mock business data with Phase 2A APIs
+- [x] Add loading, empty, warning, and error states
 - [x] Add unit/integration tests
 - [x] Run lint/test/build
 - [x] Deploy Preview
 - [x] Execute Staging E2E
-- [x] Create Phase 2A PR ([#4](https://github.com/mkshi77/AI-Keep-Fit/pull/4))
+- [ ] Create Phase 2B PR
 - [ ] Merge to integration/full-version
 
 ## Architecture Decisions
@@ -52,7 +51,7 @@ integration/phase-2a-history-foundation
 
 ## Tests
 - `npm run lint` - PASS
-- `npm test` - PASS (48 tests)
+- `npm test` - PASS (52 tests)
 - `npm run build` - PASS locally and in Vercel Preview
 
 ## E2E Status
@@ -62,12 +61,19 @@ PASS on Vercel Preview `dpl_47jwCAZ4nwF6zL1vEXXUkBV9PftC`.
 - Body Feedback returned the designed explicit empty state because the dedicated Staging data source is not configured.
 - No Raw Notion page/property payload was exposed.
 
+Phase 2B PASS on Vercel Preview `dpl_6b7WcWwuo7PdMeQQxKCTizH3YsPz`.
+- Remote build completed successfully.
+- History, all-history, weekly overview, and body-feedback requests passed against Staging.
+- Records analytics are derived from normalized domain responses; training summary, PR, trend, and heatmap mock datasets were removed.
+- Automated visual walkthrough stopped at the existing app authentication gate; no credential or Deployment Protection bypass was attempted.
+
 ## Open Risks
 - Body Feedback Data Source is not yet available in Staging.
 - Historical snapshot fields may be absent in legacy records.
+- Authenticated visual walkthrough requires a user-authorized login session; build, adapter tests, and protected Preview API E2E are green.
 
 ## Release Blockers
 - None for Phase 2A implementation work; Body Feedback source creation remains a later migration checkpoint.
 
 ## Next Checkpoint
-Create and review the Phase 2A PR, merge to `integration/full-version`, then begin Phase 2B.
+Create and review the Phase 2B PR, merge to `integration/full-version`, then begin Phase 2C.
