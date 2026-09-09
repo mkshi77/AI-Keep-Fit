@@ -19,8 +19,8 @@ integration/phase-2c-body-weight
 ## Current Tasks
 - [x] Audit existing Body Weight persistence and data dependencies
 - [x] Check repository, schema map, and Vercel environment for an existing Body Weight source
-- [ ] Provision or identify the dedicated Body Weight Staging Data Source
-- [ ] Configure `NOTION_BODY_WEIGHT_DATA_SOURCE_ID` for Preview
+- [x] Provision or identify the dedicated Body Weight Staging Data Source
+- [x] Configure `NOTION_BODY_WEIGHT_DATA_SOURCE_ID` for Preview
 - [x] Implement Body Weight domain, read/write API, and Records adapter
 - [x] Add unit/integration tests
 - [x] Run lint/test/build
@@ -42,11 +42,12 @@ integration/phase-2c-body-weight
 - No destructive migrations.
 - Phase 2A is read-only for existing Training Execution data.
 - Additive Body Feedback Data Source is pending staging creation.
-- Additive Body Weight Data Source is required before Phase 2C write-back can be validated against Staging.
+- Additive `Body Weight - Staging` Data Source created with the Phase 2C schema; sharing it with the `Keep Fit App` Notion integration is pending.
 
 ## Staging Data Sources
 - Exercise Library - Staging
 - Training Execution - Staging
+- Body Weight - Staging (`46add619-39fe-464b-8793-a57b9b5ece96`)
 
 ## Production Data Sources
 - Exercise Library
@@ -77,13 +78,19 @@ Phase 2C implementation checkpoint on Vercel Preview `dpl_2JydL33BA2QaEFhGWmzGBd
 - Same-day saves update the existing measurement, and history reads are bounded to 1,000 records.
 - Authenticated Staging read/write verification remains blocked until the dedicated data source is provisioned and mapped.
 
+Phase 2C isolated data-source checkpoint on Vercel Preview `dpl_D4AnpWAbFJxhf8pk3ukUFNXQwJUV`.
+- `Body Weight - Staging` was created additively; the existing Production `体重与饮食数据库` was not modified.
+- Preview mappings for `NOTION_BODY_WEIGHT_DATA_SOURCE_ID` and the branch-scoped Staging access password were applied.
+- Remote build and application authentication passed.
+- The first authenticated Body Weight read correctly exposed the remaining Notion permission gate: the new data source must be shared with the `Keep Fit App` integration.
+
 ## Open Risks
 - Body Feedback Data Source is not yet available in Staging.
 - Historical snapshot fields may be absent in legacy records.
 - Authenticated visual walkthrough requires a user-authorized login session; build, adapter tests, and protected Preview API E2E are green.
 
 ## Release Blockers
-- Phase 2C requires a dedicated Body Weight Staging Data Source and Preview environment mapping; neither currently exists.
+- `Body Weight - Staging` must be shared with the Notion integration `Keep Fit App` before authenticated read/write E2E can complete.
 
 ## Next Checkpoint
-Hard stop: identify or provision the Body Weight Staging Data Source, configure its Preview data source ID, and run authenticated read/write E2E before opening the Phase 2C PR.
+Confirmation gate: share `Body Weight - Staging` with the Notion integration `Keep Fit App`, then rerun authenticated read/write/update/read E2E before opening the Phase 2C PR.
