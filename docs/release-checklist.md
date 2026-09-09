@@ -1,7 +1,7 @@
 # Release Checklist
 
 ## Phase Gates
-- [ ] Phase 2A - History Foundation
+- [x] Phase 2A - History Foundation
 - [ ] Phase 2B - Records / Analytics
 - [ ] Phase 2C - Body Weight
 - [ ] Phase 3 - AI Coach
@@ -15,7 +15,7 @@
 - [x] npm run build PASS
 - [x] Staging E2E PASS
 - [x] No Secret leak
-- [x] No Production mock business dependency
+- [ ] No Production mock business dependency
 - [x] No destructive Notion migration
 - [x] exerciseId immutable
 - [x] History snapshots preserved

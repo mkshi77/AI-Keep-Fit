@@ -8,10 +8,7 @@ import {
   BodyFeedbackRecord,
   ExerciseFeedbackData,
 } from './types';
-import {
-  INITIAL_CHAT_MESSAGES,
-  INITIAL_BODY_FEEDBACK,
-} from './data/mockData';
+import { INITIAL_CHAT_MESSAGES } from './data/mockData';
 import { completeWorkout, getTodayWorkout } from './services/workoutApi';
 import { adaptTodayWorkout } from './adapters/workoutAdapter';
 import type { TodayWorkout, WorkoutCompletionResult } from './domain/workout';
@@ -129,7 +126,7 @@ export default function App() {
         console.error(e);
       }
     }
-    return INITIAL_BODY_FEEDBACK;
+    return [];
   });
 
   useEffect(() => {
