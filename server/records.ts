@@ -167,7 +167,7 @@ export const mapBodyFeedbackPage = (page: NotionPage): BodyFeedbackHistoryRecord
   };
 };
 
-const parsePeriod = (value: string | undefined): HistoryPeriod => {
+export const parseHistoryPeriod = (value: string | undefined): HistoryPeriod => {
   if (value === 'all') return 'all';
   if (value === undefined || value === '') return '30d';
   if (!['7d', '30d', '90d', '180d'].includes(value)) throw new Error('无效历史周期');
@@ -175,7 +175,7 @@ const parsePeriod = (value: string | undefined): HistoryPeriod => {
 };
 
 export const getWorkoutHistory = async (periodInput: string | undefined): Promise<WorkoutHistorySession[]> => {
-  const period = parsePeriod(periodInput);
+  const period = parseHistoryPeriod(periodInput);
   const token = process.env.NOTION_TOKEN;
   const trainingId = process.env.NOTION_TRAINING_DATA_SOURCE_ID;
   if (!token || !trainingId) return [];

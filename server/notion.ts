@@ -30,6 +30,8 @@ export const queryDataSource = async (id: string, token: string, body: Record<st
 };
 export const updatePageProperties = (pageId: string, token: string, properties: Record<string, unknown>) =>
   request(`/pages/${pageId}`, token, { method: 'PATCH', body: JSON.stringify({ properties }) });
+export const createDataSourcePage = (dataSourceId: string, token: string, properties: Record<string, unknown>) =>
+  request<NotionPage>('/pages', token, { method: 'POST', body: JSON.stringify({ parent: { data_source_id: dataSourceId }, properties }) });
 
 const text = (value: unknown): string => Array.isArray(value) ? value.map((item) => item && typeof item === 'object' && 'plain_text' in item ? String(item.plain_text ?? '') : '').join('') : '';
 export const propertyString = (property?: NotionProperty): string => {
