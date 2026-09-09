@@ -25,7 +25,7 @@ integration/phase-2c-body-weight
 - [x] Add unit/integration tests
 - [x] Run lint/test/build
 - [x] Deploy Preview and verify build/auth boundary
-- [ ] Execute authenticated Body Weight Staging read/write E2E
+- [x] Execute authenticated Body Weight Staging read/write E2E
 - [ ] Create Phase 2C PR
 - [ ] Merge to integration/full-version
 
@@ -83,7 +83,8 @@ Phase 2C isolated data-source checkpoint on Vercel Preview `dpl_D4AnpWAbFJxhf8pk
 - Preview mappings for `NOTION_BODY_WEIGHT_DATA_SOURCE_ID` and the branch-scoped Staging access password were applied.
 - Remote build and application authentication passed.
 - The authenticated Body Weight read passed after the data source was shared with `Keep Fit App`.
-- The first write is correctly blocked by Notion because the integration does not yet have the required `Insert content` capability.
+- `Read content`, `Update content`, and `Insert content` are enabled for `Keep Fit App`.
+- Authenticated create, same-day update, and final persisted read all passed. The same page ID was preserved and the final query returned exactly one record for the date.
 
 ## Open Risks
 - Body Feedback Data Source is not yet available in Staging.
@@ -91,7 +92,7 @@ Phase 2C isolated data-source checkpoint on Vercel Preview `dpl_D4AnpWAbFJxhf8pk
 - Authenticated visual walkthrough requires a user-authorized login session; build, adapter tests, and protected Preview API E2E are green.
 
 ## Release Blockers
-- The Notion integration `Keep Fit App` must enable `Insert content` before authenticated Body Weight create/update/read E2E can complete.
+- No Phase 2C blocker remains.
 
 ## Next Checkpoint
-Capability gate: enable `Insert content` for the Notion integration `Keep Fit App`, then rerun authenticated read/write/update/read E2E before opening the Phase 2C PR.
+Complete PR review and merge Phase 2C into `integration/full-version`, then begin Phase 3.
