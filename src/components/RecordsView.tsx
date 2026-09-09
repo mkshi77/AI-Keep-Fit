@@ -1,10 +1,12 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { BodyFeedbackRecord } from '../types';
-import { buildHeatmap, buildPrRecords, buildTrends, buildWeeklyData, isoWeekLabel, mapRemoteBodyFeedback, overviewSummary, summarizeSessions, type RecordsPeriodLabel, type RecordsTrend } from '../adapters/recordsAdapter';
+import { buildBodyWeightDataset, buildHeatmap, buildPrRecords, buildTrends, buildWeeklyData, isoWeekLabel, mapRemoteBodyFeedback, overviewSummary, summarizeSessions, type RecordsPeriodLabel, type RecordsTrend } from '../adapters/recordsAdapter';
 import { useRecordsData } from '../hooks/useRecordsData';
-import type { WorkoutHistorySession } from '../domain/records';
+import { useBodyWeightData } from '../hooks/useBodyWeightData';
+import type { BodyWeightCondition, HistoryPeriod, WorkoutHistorySession } from '../domain/records';
 
 const EMPTY_HISTORY: WorkoutHistorySession[] = [];
+type BodyWeightPeriod = Exclude<HistoryPeriod, 'all'>;
 
 interface RecordsViewProps {
   bodyFeedbacks: BodyFeedbackRecord[];
@@ -19,89 +21,33 @@ export const RecordsView: React.FC<RecordsViewProps> = ({ bodyFeedbacks, onOpenC
   const [selectedTrendExercise, setSelectedTrendExercise] = useState<string>('');
   const [showExercisePickerModal, setShowExercisePickerModal] = useState(false);
 
-  // Weight Logging state & persistence
-  const [currentWeight, setCurrentWeight] = useState<number>(() => {
-    const saved = localStorage.getItem('keepfit_weight');
-    return saved ? parseFloat(saved) : 74.2;
-  });
+  // Weight Logging state backed by the dedicated Body Weight data source
   const [showWeightModal, setShowWeightModal] = useState(false);
-  const [inputWeight, setInputWeight] = useState<string>(currentWeight.toFixed(1));
-  const [weightCondition, setWeightCondition] = useState<'晨起空腹' | '练后即刻' | '晚间称重'>('晨起空腹');
-  const [weightPeriod, setWeightPeriod] = useState<'7d' | '30d' | '90d' | '180d'>('30d');
+  const [inputWeight, setInputWeight] = useState('');
+  const [weightCondition, setWeightCondition] = useState<BodyWeightCondition>('晨起空腹');
+  const [weightPeriod, setWeightPeriod] = useState<BodyWeightPeriod>('30d');
+  const bodyWeight = useBodyWeightData(weightPeriod);
+  const activeWeightDataset = useMemo(
+    () => buildBodyWeightDataset(bodyWeight.records, weightPeriod),
+    [bodyWeight.records, weightPeriod],
+  );
+  const latestWeight = bodyWeight.records.at(-1);
+  const currentWeight = latestWeight?.weightKg;
 
-  // Multi-period historical logs that automatically link with current logged weight
-  const weightPeriodData: Record<'7d' | '30d' | '90d' | '180d', {
-    label: string;
-    points: { date: string; weight: number }[];
-    yMin: number;
-    yMax: number;
-    baseline: number;
-  }> = {
-    '7d': {
-      label: '近 7 天',
-      points: [
-        { date: '09/01', weight: 74.4 },
-        { date: '09/02', weight: 74.3 },
-        { date: '09/04', weight: 74.3 },
-        { date: '09/06', weight: 74.1 },
-        { date: '09/07', weight: currentWeight },
-      ],
-      yMin: 73.8,
-      yMax: 74.8,
-      baseline: 74.4,
-    },
-    '30d': {
-      label: '近 30 天',
-      points: [
-        { date: '08/08', weight: 75.0 },
-        { date: '08/18', weight: 74.8 },
-        { date: '08/28', weight: 74.5 },
-        { date: '09/04', weight: 74.3 },
-        { date: '09/07', weight: currentWeight },
-      ],
-      yMin: 73.8,
-      yMax: 75.4,
-      baseline: 75.0,
-    },
-    '90d': {
-      label: '近 90 天',
-      points: [
-        { date: '06/15', weight: 76.5 },
-        { date: '07/05', weight: 75.8 },
-        { date: '07/25', weight: 75.2 },
-        { date: '08/15', weight: 74.9 },
-        { date: '09/07', weight: currentWeight },
-      ],
-      yMin: 73.5,
-      yMax: 77.0,
-      baseline: 76.5,
-    },
-    '180d': {
-      label: '近半年',
-      points: [
-        { date: '03/10', weight: 78.2 },
-        { date: '04/20', weight: 77.0 },
-        { date: '06/01', weight: 76.1 },
-        { date: '07/15', weight: 75.2 },
-        { date: '09/07', weight: currentWeight },
-      ],
-      yMin: 73.5,
-      yMax: 78.8,
-      baseline: 78.2,
-    },
-  };
-
-  const activeWeightDataset = weightPeriodData[weightPeriod];
-
-  const handleSaveWeight = () => {
-    const parsed = parseFloat(inputWeight);
-    if (!isNaN(parsed) && parsed > 30 && parsed < 250) {
-      setCurrentWeight(parsed);
-      localStorage.setItem('keepfit_weight', parsed.toString());
+  const handleSaveWeight = async () => {
+    const parsed = Number.parseFloat(inputWeight);
+    if (!Number.isFinite(parsed) || parsed <= 30 || parsed >= 250) return;
+    try {
+      await bodyWeight.save({
+        date: new Intl.DateTimeFormat('en-CA').format(new Date()),
+        weightKg: parsed,
+        condition: weightCondition,
+      });
       setShowWeightModal(false);
+    } catch {
+      // The hook exposes the request error inside the modal.
     }
   };
-
   const heatmapScrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (heatmapScrollRef.current) {
@@ -723,17 +669,19 @@ export const RecordsView: React.FC<RecordsViewProps> = ({ bodyFeedbacks, onOpenC
               <div className="flex items-center gap-1.5">
                 <span className="text-xs text-[#8E8E93] whitespace-nowrap">体重追踪</span>
                 <span className="text-[9px] text-neutral-400 bg-white/5 px-1.5 py-0.5 rounded font-mono whitespace-nowrap">
-                  最新: {activeWeightDataset.points[activeWeightDataset.points.length - 1]?.date || '09/07'}
+                  最新: {activeWeightDataset.points[activeWeightDataset.points.length - 1]?.date || '--'}
                 </span>
               </div>
               {/* Guaranteed Single Line Display */}
               <div className="flex items-baseline gap-1.5 mt-0.5 whitespace-nowrap">
                 <span className="text-lg font-bold text-white tracking-tight font-mono whitespace-nowrap">
-                  {currentWeight.toFixed(1)} <span className="text-xs text-neutral-400 font-normal">kg</span>
+                  {currentWeight?.toFixed(1) ?? '--'} <span className="text-xs text-neutral-400 font-normal">kg</span>
                 </span>
-                <span className="text-xs font-semibold text-[#A4FF4F] font-mono whitespace-nowrap">
-                  ({activeWeightDataset.label} {(currentWeight - activeWeightDataset.baseline) > 0 ? `+${(currentWeight - activeWeightDataset.baseline).toFixed(1)}` : (currentWeight - activeWeightDataset.baseline).toFixed(1)}kg)
-                </span>
+                {currentWeight != null && activeWeightDataset.points.length > 0 && (
+                  <span className="text-xs font-semibold text-[#A4FF4F] font-mono whitespace-nowrap">
+                    ({activeWeightDataset.label} {currentWeight - activeWeightDataset.baseline > 0 ? '+' : ''}{(currentWeight - activeWeightDataset.baseline).toFixed(1)}kg)
+                  </span>
+                )}
               </div>
             </div>
 
@@ -742,7 +690,7 @@ export const RecordsView: React.FC<RecordsViewProps> = ({ bodyFeedbacks, onOpenC
               <button
                 type="button"
                 onClick={() => {
-                  setInputWeight(currentWeight.toFixed(1));
+                  setInputWeight(currentWeight?.toFixed(1) ?? '');
                   setShowWeightModal(true);
                 }}
                 className="text-xs font-semibold text-[#A4FF4F] bg-[#A4FF4F]/15 hover:bg-[#A4FF4F]/25 border border-[#A4FF4F]/30 px-3 py-1.5 rounded-xl cursor-pointer transition-all flex items-center gap-1 shrink-0 whitespace-nowrap"
@@ -752,6 +700,12 @@ export const RecordsView: React.FC<RecordsViewProps> = ({ bodyFeedbacks, onOpenC
             </div>
           </div>
 
+          {(bodyWeight.warning || bodyWeight.error) && (
+            <p className={`text-[10px] ${bodyWeight.error ? 'text-red-300' : 'text-neutral-500'}`}>
+              {bodyWeight.error || bodyWeight.warning}
+            </p>
+          )}
+
           {/* Full-width Weight Trend Line Chart with Period Switcher */}
           <div className="bg-[#18181B] rounded-xl p-3 border border-white/5 space-y-2.5">
             {/* Header: Title + Period Selector Pills */}
@@ -759,7 +713,9 @@ export const RecordsView: React.FC<RecordsViewProps> = ({ bodyFeedbacks, onOpenC
               <div className="flex items-center gap-2">
                 <span className="text-xs font-medium text-white">{activeWeightDataset.label}走势曲线</span>
                 <span className="text-[10px] text-neutral-400 font-mono">
-                  高: {Math.max(...activeWeightDataset.points.map(l => l.weight)).toFixed(1)} · 低: {Math.min(...activeWeightDataset.points.map(l => l.weight)).toFixed(1)}kg
+                  {activeWeightDataset.points.length
+                    ? `高: ${Math.max(...activeWeightDataset.points.map((point) => point.weight)).toFixed(1)} · 低: ${Math.min(...activeWeightDataset.points.map((point) => point.weight)).toFixed(1)}kg`
+                    : '暂无记录'}
                 </span>
               </div>
 
@@ -810,7 +766,7 @@ export const RecordsView: React.FC<RecordsViewProps> = ({ bodyFeedbacks, onOpenC
               <div className="absolute left-12 right-2 bottom-2 border-b border-dashed border-white/5 pointer-events-none" />
 
               {/* Calculations for Smooth Spline & Coordinates */}
-              {(() => {
+              {activeWeightDataset.points.length ? (() => {
                 const total = activeWeightDataset.points.length;
                 const minW = activeWeightDataset.yMin;
                 const maxW = activeWeightDataset.yMax;
@@ -894,7 +850,11 @@ export const RecordsView: React.FC<RecordsViewProps> = ({ bodyFeedbacks, onOpenC
                     })}
                   </>
                 );
-              })()}
+              })() : (
+                <div className="h-full flex items-center justify-center text-[11px] text-neutral-500">
+                  {bodyWeight.loading ? '正在加载体重记录…' : '暂无体重记录'}
+                </div>
+              )}
 
               {/* Active Point Floating Tooltip if Selected */}
               {activeWeightPointIdx !== null && activeWeightDataset.points[activeWeightPointIdx] && (
@@ -1073,6 +1033,10 @@ export const RecordsView: React.FC<RecordsViewProps> = ({ bodyFeedbacks, onOpenC
               </div>
             </div>
 
+            {bodyWeight.error && (
+              <p className="text-center text-[11px] text-red-300">{bodyWeight.error}</p>
+            )}
+
             {/* Action Buttons */}
             <div className="flex gap-2 pt-1">
               <button
@@ -1085,9 +1049,10 @@ export const RecordsView: React.FC<RecordsViewProps> = ({ bodyFeedbacks, onOpenC
               <button
                 type="button"
                 onClick={handleSaveWeight}
-                className="flex-1 py-2.5 rounded-xl bg-[#A4FF4F] hover:bg-[#92EE40] text-black text-xs font-bold transition cursor-pointer shadow-sm"
+                disabled={bodyWeight.saving || !Number.isFinite(Number.parseFloat(inputWeight)) || Number.parseFloat(inputWeight) <= 30 || Number.parseFloat(inputWeight) >= 250}
+                className="flex-1 py-2.5 rounded-xl bg-[#A4FF4F] hover:bg-[#92EE40] text-black text-xs font-bold transition cursor-pointer shadow-sm disabled:opacity-50"
               >
-                确认打卡
+                {bodyWeight.saving ? '保存中…' : '确认打卡'}
               </button>
             </div>
           </div>

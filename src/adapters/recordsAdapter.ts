@@ -1,4 +1,4 @@
-import type { BodyFeedbackHistoryRecord, HistoryPeriod, WorkoutHistoryOverview, WorkoutHistorySession } from '../domain/records';
+import type { BodyFeedbackHistoryRecord, BodyWeightRecord, HistoryPeriod, WorkoutHistoryOverview, WorkoutHistorySession } from '../domain/records';
 import type { BodyFeedbackRecord } from '../types';
 
 export type RecordsPeriodLabel = '本周' | '本月' | '3个月' | '全部';
@@ -35,6 +35,14 @@ export interface RecordsHeatmap {
   rows: Array<Array<{ date: string; value: 0 | 1 | 2; sets: number }>>;
   months: Array<{ label: string; weeks: number }>;
   totalAttendance: number;
+}
+
+export interface BodyWeightDataset {
+  label: string;
+  points: Array<{ date: string; weight: number }>;
+  yMin: number;
+  yMax: number;
+  baseline: number;
 }
 
 const isoDate = (date: Date) => date.toISOString().slice(0, 10);
@@ -149,3 +157,14 @@ export const mapRemoteBodyFeedback = (records: BodyFeedbackHistoryRecord[]): Bod
   const score = record.score ?? 0;
   return { id: record.id, part: record.bodyPart || record.exerciseName || '全身', date: shortDate(record.date), description: record.description || record.summary || '暂无描述', score: `${score}/10`, scoreColor: score >= 7 ? 'red' : score >= 4 ? 'amber' : 'green' };
 });
+
+export const buildBodyWeightDataset = (records: BodyWeightRecord[], period: Exclude<HistoryPeriod, 'all'>): BodyWeightDataset => {
+  const labels = { '7d': '近 7 天', '30d': '近 30 天', '90d': '近 90 天', '180d': '近半年' } as const;
+  const sorted = [...records].sort((left, right) => left.date.localeCompare(right.date));
+  const points = sorted.map((record) => ({ date: shortDate(record.date), weight: record.weightKg }));
+  const weights = points.map((point) => point.weight);
+  const min = weights.length ? Math.min(...weights) : 0;
+  const max = weights.length ? Math.max(...weights) : 0;
+  const padding = weights.length ? Math.max(0.5, (max - min) * 0.2) : 0;
+  return { label: labels[period], points, yMin: min - padding, yMax: max + padding, baseline: weights[0] ?? 0 };
+};

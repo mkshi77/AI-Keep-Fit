@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { WorkoutHistorySession } from '../src/domain/records';
-import { buildHeatmap, buildPrRecords, buildTrends, buildWeeklyData, isoWeekLabel, mapRemoteBodyFeedback, summarizeSessions } from '../src/adapters/recordsAdapter';
+import { buildBodyWeightDataset, buildHeatmap, buildPrRecords, buildTrends, buildWeeklyData, isoWeekLabel, mapRemoteBodyFeedback, summarizeSessions } from '../src/adapters/recordsAdapter';
 
 const sessions: WorkoutHistorySession[] = [{
   date: '2026-09-08', trainingDay: 'A', durationMinutes: 45, completedSets: 2, plannedSets: 3,
@@ -37,5 +37,16 @@ describe('records adapter', () => {
   it('maps server body feedback to the existing view model', () => {
     expect(mapRemoteBodyFeedback([{ id: 'fb', date: '2026-09-09', bodyPart: '肩', description: '紧张', score: 5 }])[0])
       .toMatchObject({ part: '肩', date: '09/09', score: '5/10', scoreColor: 'amber' });
+  });
+
+  it('builds body weight chart bounds from persisted records', () => {
+    const dataset = buildBodyWeightDataset([
+      { id: 'w1', date: '2026-09-08', weightKg: 74.4, condition: '晨起空腹' },
+      { id: 'w2', date: '2026-09-09', weightKg: 74.1, condition: '晨起空腹' },
+    ], '30d');
+    expect(dataset).toMatchObject({ label: '近 30 天', baseline: 74.4 });
+    expect(dataset.points.map((point) => point.weight)).toEqual([74.4, 74.1]);
+    expect(dataset.yMin).toBeLessThan(74.1);
+    expect(dataset.yMax).toBeGreaterThan(74.4);
   });
 });

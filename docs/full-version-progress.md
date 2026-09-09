@@ -21,10 +21,11 @@ integration/phase-2c-body-weight
 - [x] Check repository, schema map, and Vercel environment for an existing Body Weight source
 - [ ] Provision or identify the dedicated Body Weight Staging Data Source
 - [ ] Configure `NOTION_BODY_WEIGHT_DATA_SOURCE_ID` for Preview
-- [ ] Implement Body Weight domain, read/write API, and Records adapter
-- [ ] Add unit/integration tests
-- [ ] Run lint/test/build
-- [ ] Deploy Preview and execute Staging E2E
+- [x] Implement Body Weight domain, read/write API, and Records adapter
+- [x] Add unit/integration tests
+- [x] Run lint/test/build
+- [x] Deploy Preview and verify build/auth boundary
+- [ ] Execute authenticated Body Weight Staging read/write E2E
 - [ ] Create Phase 2C PR
 - [ ] Merge to integration/full-version
 
@@ -41,7 +42,7 @@ integration/phase-2c-body-weight
 - No destructive migrations.
 - Phase 2A is read-only for existing Training Execution data.
 - Additive Body Feedback Data Source is pending staging creation.
-- Additive Body Weight Data Source is required before Phase 2C implementation can be validated.
+- Additive Body Weight Data Source is required before Phase 2C write-back can be validated against Staging.
 
 ## Staging Data Sources
 - Exercise Library - Staging
@@ -53,7 +54,7 @@ integration/phase-2c-body-weight
 
 ## Tests
 - `npm run lint` - PASS
-- `npm test` - PASS (52 tests)
+- `npm test` - PASS (57 tests)
 - `npm run build` - PASS locally and in Vercel Preview
 
 ## E2E Status
@@ -69,6 +70,13 @@ Phase 2B PASS on Vercel Preview `dpl_6b7WcWwuo7PdMeQQxKCTizH3YsPz`.
 - Records analytics are derived from normalized domain responses; training summary, PR, trend, and heatmap mock datasets were removed.
 - Automated visual walkthrough stopped at the existing app authentication gate; no credential or Deployment Protection bypass was attempted.
 
+Phase 2C implementation checkpoint on Vercel Preview `dpl_2JydL33BA2QaEFhGWmzGBdNSwhkN`.
+- Remote build completed successfully.
+- The Body Weight endpoint rejected an unauthenticated request with the expected authentication boundary.
+- Local-only and hardcoded weight history were removed; the Records view now reads and writes normalized Body Weight domain records.
+- Same-day saves update the existing measurement, and history reads are bounded to 1,000 records.
+- Authenticated Staging read/write verification remains blocked until the dedicated data source is provisioned and mapped.
+
 ## Open Risks
 - Body Feedback Data Source is not yet available in Staging.
 - Historical snapshot fields may be absent in legacy records.
@@ -78,4 +86,4 @@ Phase 2B PASS on Vercel Preview `dpl_6b7WcWwuo7PdMeQQxKCTizH3YsPz`.
 - Phase 2C requires a dedicated Body Weight Staging Data Source and Preview environment mapping; neither currently exists.
 
 ## Next Checkpoint
-Hard stop: identify or provision the Body Weight Staging Data Source, then configure its Preview data source ID before implementing write-back.
+Hard stop: identify or provision the Body Weight Staging Data Source, configure its Preview data source ID, and run authenticated read/write E2E before opening the Phase 2C PR.

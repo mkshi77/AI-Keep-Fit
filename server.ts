@@ -9,6 +9,7 @@ import sessionHandler from "./api/auth/session.js";
 import recordsHistoryHandler from "./api/records/history.js";
 import recordsOverviewHandler from "./api/records/overview.js";
 import bodyFeedbackHandler from "./api/records/body-feedback.js";
+import bodyWeightHandler from "./api/records/body-weight.js";
 
 dotenv.config();
 
@@ -22,6 +23,7 @@ app.all('/api/workout/complete', (req, res) => { void completeWorkoutHandler(req
 app.all('/api/records/history', (req, res) => { void recordsHistoryHandler(req, res); });
 app.all('/api/records/overview', (req, res) => { void recordsOverviewHandler(req, res); });
 app.all('/api/records/body-feedback', (req, res) => { void bodyFeedbackHandler(req, res); });
+app.all('/api/records/body-weight', (req, res) => { void bodyWeightHandler(req, res); });
 
 // Lazy-initialized Gemini client
 function getGeminiClient(): GoogleGenAI | null {
