@@ -6,6 +6,9 @@ import { createServer as createViteServer } from "vite";
 import todayWorkoutHandler from "./api/workout/today.js";
 import completeWorkoutHandler from "./api/workout/complete.js";
 import sessionHandler from "./api/auth/session.js";
+import recordsHistoryHandler from "./api/records/history.js";
+import recordsOverviewHandler from "./api/records/overview.js";
+import bodyFeedbackHandler from "./api/records/body-feedback.js";
 
 dotenv.config();
 
@@ -16,6 +19,9 @@ app.use(express.json());
 app.all('/api/auth/session', (req, res) => { void sessionHandler(req, res); });
 app.all('/api/workout/today', (req, res) => { void todayWorkoutHandler(req, res); });
 app.all('/api/workout/complete', (req, res) => { void completeWorkoutHandler(req, res); });
+app.all('/api/records/history', (req, res) => { void recordsHistoryHandler(req, res); });
+app.all('/api/records/overview', (req, res) => { void recordsOverviewHandler(req, res); });
+app.all('/api/records/body-feedback', (req, res) => { void bodyFeedbackHandler(req, res); });
 
 // Lazy-initialized Gemini client
 function getGeminiClient(): GoogleGenAI | null {
