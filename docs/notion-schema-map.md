@@ -31,7 +31,7 @@
 
 Body Weight uses one measurement per calendar date. Saving again on the same date updates that page, including the measurement condition, rather than creating a duplicate chart point.
 
-Phase 2C Staging uses `Body Weight - Staging` (`46add619-39fe-464b-8793-a57b9b5ece96`). It is isolated from the existing Production `体重与饮食数据库` and must be shared with the `Keep Fit App` Notion integration before API E2E.
+Phase 2C Staging uses `Body Weight - Staging` (`46add619-39fe-464b-8793-a57b9b5ece96`). It is isolated from the existing Production `体重与饮食数据库` and is shared with the `Keep Fit App` Notion integration. API writes also require that integration's `Insert content` capability.
 
 ## Legacy Compatibility
 - Existing `左右差异` remains Select in Production and must not be renamed or retyped.

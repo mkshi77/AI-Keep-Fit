@@ -42,7 +42,7 @@ integration/phase-2c-body-weight
 - No destructive migrations.
 - Phase 2A is read-only for existing Training Execution data.
 - Additive Body Feedback Data Source is pending staging creation.
-- Additive `Body Weight - Staging` Data Source created with the Phase 2C schema; sharing it with the `Keep Fit App` Notion integration is pending.
+- Additive `Body Weight - Staging` Data Source created with the Phase 2C schema and shared with the `Keep Fit App` Notion integration.
 
 ## Staging Data Sources
 - Exercise Library - Staging
@@ -82,7 +82,8 @@ Phase 2C isolated data-source checkpoint on Vercel Preview `dpl_D4AnpWAbFJxhf8pk
 - `Body Weight - Staging` was created additively; the existing Production `体重与饮食数据库` was not modified.
 - Preview mappings for `NOTION_BODY_WEIGHT_DATA_SOURCE_ID` and the branch-scoped Staging access password were applied.
 - Remote build and application authentication passed.
-- The first authenticated Body Weight read correctly exposed the remaining Notion permission gate: the new data source must be shared with the `Keep Fit App` integration.
+- The authenticated Body Weight read passed after the data source was shared with `Keep Fit App`.
+- The first write is correctly blocked by Notion because the integration does not yet have the required `Insert content` capability.
 
 ## Open Risks
 - Body Feedback Data Source is not yet available in Staging.
@@ -90,7 +91,7 @@ Phase 2C isolated data-source checkpoint on Vercel Preview `dpl_D4AnpWAbFJxhf8pk
 - Authenticated visual walkthrough requires a user-authorized login session; build, adapter tests, and protected Preview API E2E are green.
 
 ## Release Blockers
-- `Body Weight - Staging` must be shared with the Notion integration `Keep Fit App` before authenticated read/write E2E can complete.
+- The Notion integration `Keep Fit App` must enable `Insert content` before authenticated Body Weight create/update/read E2E can complete.
 
 ## Next Checkpoint
-Confirmation gate: share `Body Weight - Staging` with the Notion integration `Keep Fit App`, then rerun authenticated read/write/update/read E2E before opening the Phase 2C PR.
+Capability gate: enable `Insert content` for the Notion integration `Keep Fit App`, then rerun authenticated read/write/update/read E2E before opening the Phase 2C PR.
