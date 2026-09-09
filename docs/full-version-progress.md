@@ -88,6 +88,13 @@ Phase 2C isolated data-source checkpoint on Vercel Preview `dpl_D4AnpWAbFJxhf8pk
 - `Read content`, `Update content`, and `Insert content` are enabled for `Keep Fit App`.
 - Authenticated create, same-day update, and final persisted read all passed. The same page ID was preserved and the final query returned exactly one record for the date.
 
+Phase 3 foundation checkpoint on Vercel Preview `dpl_BqpCTsD4c3WUg5bdm5R4tcWcQjuN`.
+- Remote build completed successfully and emitted isolated Coach and Body Feedback serverless routes.
+- The Coach route rejects unauthenticated requests and no longer returns local fallback advice.
+- The branch-scoped `NOTION_BODY_FEEDBACK_DATA_SOURCE_ID` mapping is active.
+- Staging read reached the mapped data source and confirmed that `Keep Fit App` still needs explicit sharing access.
+- Live Coach generation remains gated on a sensitive `GEMINI_API_KEY` Preview variable.
+
 ## Open Risks
 - `Body Feedback - Staging` must be shared with `Keep Fit App` before authenticated write E2E.
 - Preview has no `GEMINI_API_KEY`; live Coach response E2E requires a user-owned Gemini API key configured as a sensitive Vercel variable.
@@ -96,6 +103,7 @@ Phase 2C isolated data-source checkpoint on Vercel Preview `dpl_D4AnpWAbFJxhf8pk
 
 ## Release Blockers
 - No Phase 2C blocker remains.
+- Phase 3 Staging E2E requires the two user-owned external permissions listed above.
 
 ## Next Checkpoint
 Complete the Phase 3 AI Coach server/domain foundation and eliminate production mock behavior before Preview E2E.
