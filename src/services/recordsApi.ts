@@ -1,4 +1,4 @@
-import type { BodyWeightInput, BodyWeightRecord, BodyWeightResult, HistoryPeriod } from '../domain/records';
+import type { BodyFeedbackHistoryRecord, BodyFeedbackInput, BodyWeightInput, BodyWeightRecord, BodyWeightResult, HistoryPeriod } from '../domain/records';
 
 const parseError = async (response: Response) => {
   const body = await response.json().catch(() => null) as { error?: string } | null;
@@ -17,4 +17,12 @@ export const saveBodyWeightRecord = async (input: BodyWeightInput): Promise<Body
   });
   if (!response.ok) throw new Error(await parseError(response));
   return response.json() as Promise<BodyWeightRecord>;
+};
+
+export const saveBodyFeedbackRecord = async (input: BodyFeedbackInput): Promise<BodyFeedbackHistoryRecord> => {
+  const response = await fetch('/api/records/body-feedback', {
+    method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(await parseError(response));
+  return response.json() as Promise<BodyFeedbackHistoryRecord>;
 };

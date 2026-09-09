@@ -65,11 +65,8 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   time: string;
   text: string;
-  proposedFeedback?: {
-    exercise: string;
-    location: string;
-    discomfortLevel: string;
-    note: string;
-  };
+  proposedFeedback?: CoachFeedbackProposal;
   isFeedbackRecorded?: boolean;
+  feedbackError?: string;
 }
+import type { CoachFeedbackProposal } from './domain/coach';

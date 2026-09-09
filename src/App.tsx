@@ -8,7 +8,6 @@ import {
   BodyFeedbackRecord,
   ExerciseFeedbackData,
 } from './types';
-import { INITIAL_CHAT_MESSAGES } from './data/mockData';
 import { completeWorkout, getTodayWorkout } from './services/workoutApi';
 import { adaptTodayWorkout } from './adapters/workoutAdapter';
 import type { TodayWorkout, WorkoutCompletionResult } from './domain/workout';
@@ -40,6 +39,19 @@ import { ExerciseFeedbackView } from './components/ExerciseFeedbackView';
 import { WorkoutSummaryView } from './components/WorkoutSummaryView';
 import { RecordsView } from './components/RecordsView';
 import { CoachView } from './components/CoachView';
+import type { CoachFeedbackProposal } from './domain/coach';
+import { sendCoachMessage } from './services/coachApi';
+import { saveBodyFeedbackRecord } from './services/recordsApi';
+import { mapRemoteBodyFeedback } from './adapters/recordsAdapter';
+
+const messageTime = () => new Date().toTimeString().slice(0, 5);
+const currentDate = () => new Intl.DateTimeFormat('en-CA').format(new Date());
+const welcomeMessage = (): ChatMessage => ({
+  id: `coach-welcome-${Date.now()}`,
+  role: 'assistant',
+  time: messageTime(),
+  text: '告诉我你当前的训练状态、疲劳感或动作问题，我会结合已记录的训练数据给出建议。',
+});
 
 export default function App() {
   const [workout, setWorkout] = useState<TodayWorkout | null>(null);
@@ -117,38 +129,10 @@ export default function App() {
   });
 
   // Body Feedback State
-  const [bodyFeedbacks, setBodyFeedbacks] = useState<BodyFeedbackRecord[]>(() => {
-    const saved = localStorage.getItem('keepfit_feedback');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error(e);
-      }
-    }
-    return [];
-  });
-
-  useEffect(() => {
-    localStorage.setItem('keepfit_feedback', JSON.stringify(bodyFeedbacks));
-  }, [bodyFeedbacks]);
+  const [bodyFeedbacks, setBodyFeedbacks] = useState<BodyFeedbackRecord[]>([]);
 
   // AI Coach Chat Messages
-  const [messages, setMessages] = useState<ChatMessage[]>(() => {
-    const saved = localStorage.getItem('keepfit_chat');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error(e);
-      }
-    }
-    return INITIAL_CHAT_MESSAGES;
-  });
-
-  useEffect(() => {
-    localStorage.setItem('keepfit_chat', JSON.stringify(messages));
-  }, [messages]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => [welcomeMessage()]);
 
   // Live time for status bar
   const [currentTime, setCurrentTime] = useState('9:41');
@@ -264,17 +248,21 @@ export default function App() {
   };
 
   // Handler: Save summary-level body check-in feedback
-  const handleSaveSummaryBodyFeedback = (record: { part: string; level: number; note: string }) => {
+  const handleSaveSummaryBodyFeedback = async (record: { part: string; level: number; note: string }) => {
     if (record.level > 0) {
-      const newFeedbackRecord: BodyFeedbackRecord = {
-        id: `fb-${Date.now()}`,
-        part: record.part,
-        description: record.note || `${record.part} 感觉 ${record.level}/10 级酸胀`,
-        score: `${record.level}/10`,
-        scoreColor: record.level >= 5 ? 'amber' : 'green',
-        date: '09/07',
-      };
-      setBodyFeedbacks((prev) => [newFeedbackRecord, ...prev.filter((p) => p.part !== record.part)]);
+      try {
+        const saved = await saveBodyFeedbackRecord({
+          date: currentDate(),
+          bodyPart: record.part,
+          description: record.note || `${record.part} 感觉 ${record.level}/10 级酸胀`,
+          score: record.level,
+          type: '训练总结',
+        });
+        const mapped = mapRemoteBodyFeedback([saved])[0];
+        setBodyFeedbacks((prev) => [mapped, ...prev.filter((item) => item.id !== mapped.id)]);
+      } catch (error) {
+        console.error('Body feedback save failed', error);
+      }
     }
   };
 
@@ -364,7 +352,7 @@ export default function App() {
       id: `user-${Date.now()}`,
       role: 'user',
       text,
-      time: new Date().toTimeString().slice(0, 5),
+      time: messageTime(),
     };
 
     setMessages((prev) => [...prev, userMsg]);
@@ -373,95 +361,75 @@ export default function App() {
       const currentEx = exercises[currentExerciseIndex] || exercises[0];
       const completedSets = currentEx?.sets.filter((s) => s.isCompleted).length ?? 0;
 
-      const res = await fetch('/api/coach', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: text,
-          history: messages.slice(-8).map((m) => ({
-            role: m.role,
-            text: m.text,
-          })),
-          context: {
-            currentExercise: currentEx?.name || '暂无训练',
-            currentSet: completedSets + 1,
-            totalSets: currentEx?.sets.length ?? 0,
-            weight: currentEx?.weight ?? 0,
-            targetReps: currentEx?.repRange || '',
-          },
-        }),
+      const data = await sendCoachMessage({
+        message: text,
+        history: messages.slice(-8).map((message) => ({ role: message.role, text: message.text })),
+        context: currentEx ? {
+          exerciseId: currentEx.id,
+          exerciseName: currentEx.name,
+          completedSets,
+          plannedSets: currentEx.sets.length,
+          weight: currentEx.weight,
+          targetReps: currentEx.repRange,
+        } : undefined,
       });
-
-      if (!res.ok) {
-        throw new Error('API request failed');
-      }
-
-      const data = await res.json();
       const assistantMsg: ChatMessage = {
         id: `ai-${Date.now()}`,
         role: 'assistant',
-        text: data.reply || '已收到你的反馈，建议保持当前节奏，专注离心收缩。',
-        time: new Date().toTimeString().slice(0, 5),
-        proposedFeedback: data.proposedFeedback || undefined,
+        text: data.reply,
+        time: messageTime(),
+        proposedFeedback: data.proposedFeedback,
         isFeedbackRecorded: false,
       };
 
       setMessages((prev) => [...prev, assistantMsg]);
     } catch (err) {
       console.error('Coach API Error:', err);
-      // Friendly local fallback
-      const fallbackReply: ChatMessage = {
+      const unavailableReply: ChatMessage = {
         id: `ai-${Date.now()}`,
         role: 'assistant',
-        text:
-          '收到！如果感到酸胀或发力吃力，建议在下一组先降低 2.5~5kg 负荷，保持动作轨迹顺畅，专注于目标肌群顶峰收缩与离心控制，不要强行代偿借力。',
-        time: new Date().toTimeString().slice(0, 5),
-        proposedFeedback: text.includes('不适') || text.includes('疼') || text.includes('肩')
-          ? {
-              exercise: exercises[currentExerciseIndex]?.name || '坐姿绳索划船',
-              location: '右肩前侧',
-              discomfortLevel: '4 / 10',
-              note: '组后反馈轻微拉扯感，建议下一组调整握距',
-            }
-          : undefined,
-        isFeedbackRecorded: false,
+        text: err instanceof Error ? err.message : 'AI Coach 暂时不可用，请稍后重试。',
+        time: messageTime(),
       };
-      setMessages((prev) => [...prev, fallbackReply]);
+      setMessages((prev) => [...prev, unavailableReply]);
     }
   };
 
   // Handler: Confirm feedback proposal from AI Coach
   const handleConfirmFeedback = (
     msgId: string,
-    feedback: { exercise: string; location: string; discomfortLevel: string; note: string }
+    feedback: CoachFeedbackProposal,
   ) => {
-    // Mark message as recorded
-    setMessages((prev) =>
-      prev.map((m) => (m.id === msgId ? { ...m, isFeedbackRecorded: true } : m))
-    );
+    setMessages((prev) => prev.map((message) => message.id === msgId ? { ...message, feedbackError: undefined } : message));
+    void saveBodyFeedbackRecord({
+      date: currentDate(),
+      exerciseId: feedback.exerciseId,
+      exerciseName: feedback.exerciseName,
+      bodyPart: feedback.bodyPart,
+      description: feedback.note,
+      score: feedback.score,
+      type: 'AI Coach',
+      summary: feedback.note,
+    }).then((saved) => {
+      const mapped = mapRemoteBodyFeedback([saved])[0];
+      setBodyFeedbacks((prev) => [mapped, ...prev.filter((item) => item.id !== mapped.id)]);
+      setMessages((prev) => prev.map((message) => message.id === msgId ? { ...message, isFeedbackRecorded: true } : message));
+    }).catch((error) => {
+      setMessages((prev) => prev.map((message) => message.id === msgId
+        ? { ...message, feedbackError: error instanceof Error ? error.message : '身体反馈写入失败' }
+        : message));
+    });
+  };
 
-    // Write to bodyFeedbacks array
-    const newRecord: BodyFeedbackRecord = {
-      id: `fb-${Date.now()}`,
-      part: feedback.location || '肩部',
-      description: `${feedback.exercise} · ${feedback.note}`,
-      score: feedback.discomfortLevel.replace(/\s+/g, ''),
-      scoreColor: 'amber',
-      date: '09/07',
-    };
-    setBodyFeedbacks((prev) => [newRecord, ...prev]);
+  const handleDismissFeedback = (msgId: string) => {
+    setMessages((prev) => prev.map((message) => message.id === msgId
+      ? { ...message, proposedFeedback: undefined, feedbackError: undefined }
+      : message));
   };
 
   // Handler: Clear and start new chat
   const handleNewChat = () => {
-    setMessages([
-      {
-        id: `init-${Date.now()}`,
-        role: 'assistant',
-        text: '新对话已开启。请随时告诉我你的训练状态、疲劳感或需要调整的动作。',
-        time: new Date().toTimeString().slice(0, 5),
-      },
-    ]);
+    setMessages([welcomeMessage()]);
   };
 
   // Compute current exercise and set progression
@@ -586,11 +554,12 @@ export default function App() {
             messages={messages}
             onSendMessage={handleSendMessage}
             onConfirmFeedback={handleConfirmFeedback}
+            onDismissFeedback={handleDismissFeedback}
             onNewChat={handleNewChat}
             currentWorkoutContext={{
-              currentExercise: currentEx?.name || '暂无训练',
-              currentSet: completedSetsCount || 6,
-              totalSets: totalWorkoutSets || 12,
+              currentExercise: currentEx?.name,
+              currentSet: completedSetsCount,
+              totalSets: totalWorkoutSets,
             }}
           />
         )}

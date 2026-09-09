@@ -64,6 +64,17 @@ export interface BodyFeedbackHistoryResult {
   warning?: string;
 }
 
+export interface BodyFeedbackInput {
+  date: string;
+  exerciseId?: string;
+  exerciseName?: string;
+  bodyPart: string;
+  description: string;
+  score: number;
+  type?: string;
+  summary?: string;
+}
+
 export type BodyWeightCondition = '晨起空腹' | '练后即刻' | '晚间称重';
 
 export interface BodyWeightRecord {

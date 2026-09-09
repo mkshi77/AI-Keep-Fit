@@ -1,13 +1,13 @@
 # AI-Keep-Fit Full Version Progress
 
 ## Current Phase
-Phase 2C - Body Weight
+Phase 3 - AI Coach
 
 Phase 2A resumed after Codex transport/parser interruption.
 Recovered from existing working tree; no reset performed.
 
 ## Current Branch
-integration/phase-2c-body-weight
+integration/phase-3-ai-coach
 
 ## Completed Phases
 - Phase 1A - PASS
@@ -15,18 +15,19 @@ integration/phase-2c-body-weight
 - Phase 1C - PASS
 - Phase 2A - PASS + merged (PR #4, merge `02f249bde8cf794ca74d0aecade234e8866929d9`)
 - Phase 2B - PASS + merged (PR #5, merge `adb5886b87b23d2659eb0a6539253d9b47188fa6`)
+- Phase 2C - PASS + merged (PR #6, merge `b36f6886aabd39642d805bd39880e075548402b9`)
 
 ## Current Tasks
-- [x] Audit existing Body Weight persistence and data dependencies
-- [x] Check repository, schema map, and Vercel environment for an existing Body Weight source
-- [x] Provision or identify the dedicated Body Weight Staging Data Source
-- [x] Configure `NOTION_BODY_WEIGHT_DATA_SOURCE_ID` for Preview
-- [x] Implement Body Weight domain, read/write API, and Records adapter
+- [x] Audit the existing AI Coach endpoint, client integration, and mock dependencies
+- [x] Define a bounded Coach request/response domain
+- [x] Enforce authentication, same-origin POST, and input validation
+- [x] Replace production fallback advice and hardcoded context with explicit service states
+- [x] Persist confirmed Coach body-feedback proposals through the normalized Records API
+- [x] Remove hardcoded Coach history and false notification/context defaults without changing the visual design
 - [x] Add unit/integration tests
 - [x] Run lint/test/build
-- [x] Deploy Preview and verify build/auth boundary
-- [x] Execute authenticated Body Weight Staging read/write E2E
-- [ ] Create Phase 2C PR
+- [ ] Deploy Preview and execute authenticated Staging E2E
+- [ ] Create and review Phase 3 PR
 - [ ] Merge to integration/full-version
 
 ## Architecture Decisions
@@ -41,13 +42,14 @@ integration/phase-2c-body-weight
 ## Notion Migrations
 - No destructive migrations.
 - Phase 2A is read-only for existing Training Execution data.
-- Additive Body Feedback Data Source is pending staging creation.
+- Additive `Body Feedback - Staging` Data Source created for Phase 3 and pending integration sharing.
 - Additive `Body Weight - Staging` Data Source created with the Phase 2C schema and shared with the `Keep Fit App` Notion integration.
 
 ## Staging Data Sources
 - Exercise Library - Staging
 - Training Execution - Staging
 - Body Weight - Staging (`46add619-39fe-464b-8793-a57b9b5ece96`)
+- Body Feedback - Staging (`0ff69ca3-b139-4e67-a39a-d6d004ee0d1c`)
 
 ## Production Data Sources
 - Exercise Library
@@ -55,7 +57,7 @@ integration/phase-2c-body-weight
 
 ## Tests
 - `npm run lint` - PASS
-- `npm test` - PASS (57 tests)
+- `npm test` - PASS (63 tests)
 - `npm run build` - PASS locally and in Vercel Preview
 
 ## E2E Status
@@ -87,7 +89,8 @@ Phase 2C isolated data-source checkpoint on Vercel Preview `dpl_D4AnpWAbFJxhf8pk
 - Authenticated create, same-day update, and final persisted read all passed. The same page ID was preserved and the final query returned exactly one record for the date.
 
 ## Open Risks
-- Body Feedback Data Source is not yet available in Staging.
+- `Body Feedback - Staging` must be shared with `Keep Fit App` before authenticated write E2E.
+- Preview has no `GEMINI_API_KEY`; live Coach response E2E requires a user-owned Gemini API key configured as a sensitive Vercel variable.
 - Historical snapshot fields may be absent in legacy records.
 - Authenticated visual walkthrough requires a user-authorized login session; build, adapter tests, and protected Preview API E2E are green.
 
@@ -95,4 +98,4 @@ Phase 2C isolated data-source checkpoint on Vercel Preview `dpl_D4AnpWAbFJxhf8pk
 - No Phase 2C blocker remains.
 
 ## Next Checkpoint
-Complete PR review and merge Phase 2C into `integration/full-version`, then begin Phase 3.
+Complete the Phase 3 AI Coach server/domain foundation and eliminate production mock behavior before Preview E2E.

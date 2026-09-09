@@ -1,4 +1,4 @@
-import { Exercise, BodyFeedbackRecord, ChatMessage } from '../types';
+import { Exercise } from '../types';
 
 export const INITIAL_EXERCISES: Exercise[] = [
   {
@@ -100,57 +100,6 @@ export const INITIAL_EXERCISES: Exercise[] = [
       { setNumber: 3, weight: 120, reps: 12, targetReps: '10-12', isCompleted: false },
       { setNumber: 4, weight: 120, reps: 12, targetReps: '10-12', isCompleted: false },
     ]
-  }
-];
-
-export const INITIAL_BODY_FEEDBACK: BodyFeedbackRecord[] = [
-  {
-    id: 'fb-1',
-    part: '右肩前侧',
-    date: '2026-09-07',
-    description: '2 次轻微不适 (卧推终点)',
-    score: '4/10',
-    scoreColor: 'amber'
-  },
-  {
-    id: 'fb-2',
-    part: '右膝',
-    date: '2026-09-02',
-    description: '1 次轻度酸胀 (已缓解)',
-    score: '2/10',
-    scoreColor: 'green'
-  }
-];
-
-export const INITIAL_CHAT_MESSAGES: ChatMessage[] = [
-  {
-    id: 'msg-welcome',
-    role: 'assistant',
-    time: '9:40',
-    text: `根据你的训练历史和今天的状态，我可以帮你：
-• 制定训练策略
-• 分析动作表现
-• 给出训练调整建议
-• 解答训练问题`
-  },
-  {
-    id: 'msg-user-1',
-    role: 'user',
-    time: '9:41',
-    text: '今天划船右肩前侧有点不舒服，4/10。'
-  },
-  {
-    id: 'msg-ai-1',
-    role: 'assistant',
-    time: '9:41',
-    text: '收到，右肩前侧如果出现牵拉刺痛，建议把握距稍微收窄，并保持沉肩。\n\n我可以帮你将这次身体反馈记录到训练日志：',
-    proposedFeedback: {
-      exercise: '坐姿绳索划船',
-      location: '右肩前侧',
-      discomfortLevel: '4 / 10',
-      note: '拉到终点附近出现不适'
-    },
-    isFeedbackRecorded: false
   }
 ];
 
