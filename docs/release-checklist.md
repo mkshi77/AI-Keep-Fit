@@ -3,7 +3,7 @@
 ## Phase Gates
 - [x] Phase 2A - History Foundation
 - [x] Phase 2B - Records / Analytics
-- [ ] Phase 2C - Body Weight
+- [x] Phase 2C - Body Weight
 - [ ] Phase 3 - AI Coach
 - [ ] Phase 4 - Replacement + Risk Engine
 - [ ] Phase 5 - AI Maintenance + Future Plan
@@ -23,6 +23,7 @@
 
 ## Final Release
 - [ ] Full integration diff reviewed
+- [ ] Production app login password removed before launch
 - [ ] Production Notion schema confirmed
 - [ ] Production environment mapping confirmed
 - [ ] Production read-only smoke test PASS
