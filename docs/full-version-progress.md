@@ -25,7 +25,7 @@ integration/phase-2a-history-foundation
 - [x] Run lint/test/build
 - [x] Deploy Preview
 - [x] Execute Staging E2E
-- [ ] Create Phase 2A PR
+- [x] Create Phase 2A PR ([#4](https://github.com/mkshi77/AI-Keep-Fit/pull/4))
 - [ ] Merge to integration/full-version
 
 ## Architecture Decisions
