@@ -26,7 +26,7 @@ integration/phase-3-ai-coach
 - [x] Remove hardcoded Coach history and false notification/context defaults without changing the visual design
 - [x] Add unit/integration tests
 - [x] Run lint/test/build
-- [ ] Deploy Preview and execute authenticated Staging E2E
+- [x] Deploy Preview and execute authenticated Staging E2E
 - [ ] Create and review Phase 3 PR
 - [ ] Merge to integration/full-version
 
@@ -42,7 +42,7 @@ integration/phase-3-ai-coach
 ## Notion Migrations
 - No destructive migrations.
 - Phase 2A is read-only for existing Training Execution data.
-- Additive `Body Feedback - Staging` Data Source created for Phase 3 and pending integration sharing.
+- Additive `Body Feedback - Staging` Data Source created for Phase 3 and shared with the `Keep Fit App` Notion integration.
 - Additive `Body Weight - Staging` Data Source created with the Phase 2C schema and shared with the `Keep Fit App` Notion integration.
 
 ## Staging Data Sources
@@ -57,7 +57,7 @@ integration/phase-3-ai-coach
 
 ## Tests
 - `npm run lint` - PASS
-- `npm test` - PASS (63 tests)
+- `npm test` - PASS (64 tests)
 - `npm run build` - PASS locally and in Vercel Preview
 
 ## E2E Status
@@ -95,16 +95,22 @@ Phase 3 foundation checkpoint on Vercel Preview `dpl_BqpCTsD4c3WUg5bdm5R4tcWcQju
 - Staging read reached the mapped data source and confirmed that `Keep Fit App` still needs explicit sharing access.
 - Live Coach generation remains gated on a sensitive `GEMINI_API_KEY` Preview variable.
 
+Phase 3 authenticated E2E PASS on Vercel Preview `dpl_7vjDFncYgdRMZHD1puf51GxkJxJ2`.
+- Remote build and application authentication passed with Preview-only credentials.
+- Live Gemini generation returned the validated structured Coach domain response for an explicitly synthetic fixture.
+- The confirmed body-feedback proposal was persisted to `Body Feedback - Staging` and read back through the normalized Records API.
+- Synthetic verification record `3d61e3e1-85ed-8108-b348-fa410daf2f20` preserved the formal `exerciseId` (`synthetic-test-row`) and score (`4`).
+- No Raw Notion page/property payload was exposed to the client.
+- All temporary local credential, cookie, request, and response files used by the verification were deleted after the run.
+
 ## Open Risks
-- `Body Feedback - Staging` must be shared with `Keep Fit App` before authenticated write E2E.
-- Preview has no `GEMINI_API_KEY`; live Coach response E2E requires a user-owned Gemini API key configured as a sensitive Vercel variable.
 - Historical snapshot fields may be absent in legacy records.
+- The first live Coach E2E response took approximately 55 seconds; observe warm and production latency before launch.
 - Authenticated visual walkthrough requires a user-authorized login session; build, adapter tests, and protected Preview API E2E are green.
 
 ## Release Blockers
-- No Phase 2C blocker remains.
-- Phase 3 Staging E2E requires the two user-owned external permissions listed above.
+- No Phase 3 implementation or Staging E2E blocker remains.
 - Phase 6 must remove the application login password before the final Production launch, per product-owner direction; Preview authentication remains enabled for staging verification only.
 
 ## Next Checkpoint
-Complete the Phase 3 AI Coach server/domain foundation and eliminate production mock behavior before Preview E2E.
+Create and review the Phase 3 PR, merge it to `integration/full-version`, then begin the next Full Version phase automatically.
