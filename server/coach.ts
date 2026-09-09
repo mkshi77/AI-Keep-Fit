@@ -10,6 +10,9 @@ import { getBodyFeedbackHistory, getWorkoutHistory } from './records.js';
 
 const MAX_MESSAGE_LENGTH = 1000;
 const MAX_HISTORY_MESSAGES = 8;
+const DEFAULT_COACH_MODEL = 'gemini-3.6-flash';
+
+export const coachModel = () => process.env.GEMINI_MODEL?.trim() || DEFAULT_COACH_MODEL;
 
 const cleanText = (value: unknown, label: string, max = MAX_MESSAGE_LENGTH, required = true) => {
   if (value == null && !required) return undefined;
@@ -113,7 +116,7 @@ export const generateCoachResponse = async (input: CoachRequest): Promise<CoachR
     { role: 'user', parts: [{ text: input.message }] },
   ];
   const response = await ai.models.generateContent({
-    model: process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash',
+    model: coachModel(),
     contents,
     config: {
       systemInstruction: buildCoachInstruction(input.context, recentHistory, bodyFeedback.records),

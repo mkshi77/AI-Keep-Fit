@@ -104,6 +104,7 @@ Phase 3 foundation checkpoint on Vercel Preview `dpl_BqpCTsD4c3WUg5bdm5R4tcWcQju
 ## Release Blockers
 - No Phase 2C blocker remains.
 - Phase 3 Staging E2E requires the two user-owned external permissions listed above.
+- Phase 6 must remove the application login password before the final Production launch, per product-owner direction; Preview authentication remains enabled for staging verification only.
 
 ## Next Checkpoint
 Complete the Phase 3 AI Coach server/domain foundation and eliminate production mock behavior before Preview E2E.

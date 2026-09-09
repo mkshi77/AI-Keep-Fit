@@ -23,6 +23,7 @@
 
 ## Final Release
 - [ ] Full integration diff reviewed
+- [ ] Production app login password removed before launch
 - [ ] Production Notion schema confirmed
 - [ ] Production environment mapping confirmed
 - [ ] Production read-only smoke test PASS

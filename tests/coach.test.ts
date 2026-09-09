@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import coachHandler from '../api/coach';
-import { buildCoachInstruction, parseCoachResponse, validateCoachRequest } from '../server/coach';
+import { buildCoachInstruction, coachModel, parseCoachResponse, validateCoachRequest } from '../server/coach';
 import { createSessionCookie } from '../server/auth';
 import type { ApiRequest, ApiResponse } from '../server/http';
 
@@ -32,7 +32,15 @@ beforeEach(() => {
   vi.stubEnv('GEMINI_API_KEY', '');
 });
 
+afterEach(() => vi.unstubAllEnvs());
+
 describe('AI Coach foundation', () => {
+  it('uses the supported stable model by default and allows an explicit override', () => {
+    expect(coachModel()).toBe('gemini-3.6-flash');
+    vi.stubEnv('GEMINI_MODEL', 'gemini-custom');
+    expect(coachModel()).toBe('gemini-custom');
+  });
+
   it('normalizes and bounds request history and workout context', () => {
     const history = Array.from({ length: 12 }, (_, index) => ({ role: index % 2 ? 'assistant' : 'user', text: `message ${index}` }));
     const input = validateCoachRequest({
