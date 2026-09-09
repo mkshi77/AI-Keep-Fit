@@ -24,7 +24,7 @@ integration/phase-2b-records-analytics
 - [x] Run lint/test/build
 - [x] Deploy Preview
 - [x] Execute Staging E2E
-- [ ] Create Phase 2B PR
+- [x] Create Phase 2B PR ([#5](https://github.com/mkshi77/AI-Keep-Fit/pull/5))
 - [ ] Merge to integration/full-version
 
 ## Architecture Decisions
