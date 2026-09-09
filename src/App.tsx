@@ -8,9 +8,10 @@ import {
   BodyFeedbackRecord,
   ExerciseFeedbackData,
 } from './types';
-import { completeWorkout, getTodayWorkout } from './services/workoutApi';
-import { adaptTodayWorkout } from './adapters/workoutAdapter';
+import { completeWorkout, getTodayWorkout, getWorkoutSafety, replaceWorkoutExercise } from './services/workoutApi';
+import { adaptReplacementOption, adaptTodayWorkout } from './adapters/workoutAdapter';
 import type { TodayWorkout, WorkoutCompletionResult } from './domain/workout';
+import type { ReplacementOption, WorkoutSafetyResult } from './domain/replacementRisk';
 import { buildWorkoutCompletionPayload } from './adapters/workoutSubmissionAdapter';
 import {
   applyWorkoutDraft,
@@ -57,6 +58,7 @@ export default function App() {
   const [workout, setWorkout] = useState<TodayWorkout | null>(null);
   const [workoutError, setWorkoutError] = useState('');
   const [isWorkoutLoading, setIsWorkoutLoading] = useState(false);
+  const [workoutSafety, setWorkoutSafety] = useState<WorkoutSafetyResult>();
   // Navigation State
   const [activeTab, setActiveTab] = useState<TabType>('today');
   const [workoutScreen, setWorkoutScreen] = useState<WorkoutScreen>('overview');
@@ -73,6 +75,13 @@ export default function App() {
     () => applyWorkoutDraft(plannedExercises, workoutDraft),
     [plannedExercises, workoutDraft],
   );
+  const replacementOptions = useMemo(() => {
+    if (!workoutSafety) return {};
+    return Object.fromEntries((Object.entries(workoutSafety.replacements) as Array<[string, ReplacementOption[]]>).map(([exerciseId, options]) => [
+      exerciseId,
+      options.map(adaptReplacementOption),
+    ]));
+  }, [workoutSafety]);
 
   const loadWorkout = async () => {
     setIsWorkoutLoading(true);
@@ -86,6 +95,11 @@ export default function App() {
       setWorkoutDraft(restoredDraft);
       setWorkout(latest);
       setCurrentExerciseIndex(restoredDraft?.currentExerciseIndex ?? 0);
+      try {
+        setWorkoutSafety(await getWorkoutSafety());
+      } catch {
+        setWorkoutSafety(undefined);
+      }
     } catch (cause) {
       setWorkoutError(cause instanceof Error ? cause.message : '无法加载今日训练');
       setPlannedExercises([]);
@@ -156,6 +170,35 @@ export default function App() {
     setWorkoutDraft((current) => current
       ? setWorkoutDraftCurrentExercise(current, exercise.id, boundedIndex)
       : current);
+  };
+
+  const handleReplaceExercise = async (oldExerciseId: string, newExercise: Exercise) => {
+    if (!workout) return;
+    if (workoutDraft) {
+      setWorkoutError('训练草稿已开始；为避免丢失进度，当前不能替换动作。');
+      return;
+    }
+    setIsWorkoutLoading(true);
+    setWorkoutError('');
+    try {
+      const latest = await replaceWorkoutExercise({
+        date: workout.date,
+        originalExerciseId: oldExerciseId,
+        replacementExerciseId: newExercise.id,
+      });
+      if (latest.source !== 'notion') throw new Error(latest.warning || '替换后训练数据暂时无法重新同步');
+      setPlannedExercises(adaptTodayWorkout(latest.exercises));
+      setWorkout(latest);
+      try {
+        setWorkoutSafety(await getWorkoutSafety());
+      } catch {
+        setWorkoutSafety(undefined);
+      }
+    } catch (cause) {
+      setWorkoutError(cause instanceof Error ? cause.message : '动作替换失败');
+    } finally {
+      setIsWorkoutLoading(false);
+    }
   };
 
   // Handler: Start workout
@@ -472,10 +515,13 @@ export default function App() {
                 isLoading={isWorkoutLoading}
                 error={workoutError}
                 onRetry={loadWorkout}
+                safety={workoutSafety}
+                replacementOptions={replacementOptions}
                 onStartWorkout={handleStartWorkout}
                 isTodayCompleted={isTodayCompleted}
                 onViewSummary={handleViewSummary}
                 onRestartWorkout={handleRestartWorkout}
+                onReplaceExercise={handleReplaceExercise}
               />
             )}
 

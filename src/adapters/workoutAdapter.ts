@@ -1,4 +1,5 @@
 import type { TodayExercise } from '../domain/exercise';
+import type { ReplacementOption } from '../domain/replacementRisk';
 import type { Exercise, SetRecord } from '../types';
 
 const EMPTY_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360"%3E%3Crect width="640" height="360" fill="%23141416"/%3E%3Ctext x="320" y="190" text-anchor="middle" fill="%2373737a" font-family="sans-serif" font-size="24"%3E暂无动作图片%3C/text%3E%3C/svg%3E';
@@ -44,3 +45,18 @@ export const adaptExercise = (exercise: TodayExercise, index: number): Exercise 
 });
 
 export const adaptTodayWorkout = (exercises: TodayExercise[]) => exercises.map(adaptExercise);
+
+export const adaptReplacementOption = (option: ReplacementOption, index: number): Exercise => adaptExercise({
+  exerciseId: option.exerciseId,
+  notionPageId: '',
+  name: option.name,
+  targetMuscle: option.targetMuscle,
+  planSets: option.planSets,
+  planReps: option.planReps,
+  planWeight: option.planWeight,
+  restSeconds: option.restSeconds,
+  baseline: option.baseline,
+  recommendationTag: option.recommendationTag || '同目标肌群',
+  cover: option.cover,
+  instructions: option.instructions,
+}, index);

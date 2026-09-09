@@ -1,7 +1,7 @@
 # AI-Keep-Fit Full Version Progress
 
 ## Current Phase
-Phase 3 - AI Coach
+Phase 4 - Replacement + Risk Engine
 
 Phase 2A resumed after Codex transport/parser interruption.
 Recovered from existing working tree; no reset performed.
@@ -16,18 +16,19 @@ integration/phase-3-ai-coach
 - Phase 2A - PASS + merged (PR #4, merge `02f249bde8cf794ca74d0aecade234e8866929d9`)
 - Phase 2B - PASS + merged (PR #5, merge `adb5886b87b23d2659eb0a6539253d9b47188fa6`)
 - Phase 2C - PASS + merged (PR #6, merge `b36f6886aabd39642d805bd39880e075548402b9`)
+- Phase 3 - PASS + merged (PR #7, merge `3f11befe37707fd68ec69b8887b8a6e88b1fae54`)
 
 ## Current Tasks
-- [x] Audit the existing AI Coach endpoint, client integration, and mock dependencies
-- [x] Define a bounded Coach request/response domain
-- [x] Enforce authentication, same-origin POST, and input validation
-- [x] Replace production fallback advice and hardcoded context with explicit service states
-- [x] Persist confirmed Coach body-feedback proposals through the normalized Records API
-- [x] Remove hardcoded Coach history and false notification/context defaults without changing the visual design
+- [x] Audit the existing replacement UI, risk reminder, normalized workout data, and reference implementation
+- [x] Define bounded Replacement and Risk domain responses
+- [x] Derive replacement candidates only from enabled Exercise Library records
+- [x] Validate and persist same-day, incomplete workout replacements without rewriting history
+- [x] Derive risk signals from normalized Body Feedback and workout history without fabricated medical claims
+- [x] Replace hardcoded alternative exercises and right-shoulder warning without changing the visual design
 - [x] Add unit/integration tests
-- [x] Run lint/test/build
-- [x] Deploy Preview and execute authenticated Staging E2E
-- [ ] Create and review Phase 3 PR
+- [ ] Run lint/test/build
+- [ ] Deploy Preview and execute authenticated Staging E2E
+- [ ] Create and review Phase 4 PR
 - [ ] Merge to integration/full-version
 
 ## Architecture Decisions
@@ -57,7 +58,7 @@ integration/phase-3-ai-coach
 
 ## Tests
 - `npm run lint` - PASS
-- `npm test` - PASS (65 tests)
+- `npm test` - PASS (71 tests)
 - `npm run build` - PASS locally and in Vercel Preview
 
 ## E2E Status
@@ -103,14 +104,22 @@ Phase 3 authenticated E2E PASS on Vercel Preview `dpl_7vjDFncYgdRMZHD1puf51GxkJx
 - No Raw Notion page/property payload was exposed to the client.
 - All temporary local credential, cookie, request, and response files used by the verification were deleted after the run.
 
+Phase 4 local foundation checkpoint.
+- Replacement candidates are bounded to five per exercise and derived only from enabled, non-retired Exercise Library records with the same normalized target muscle.
+- Replacement writes require authentication and same-origin POST, and reject non-current dates, duplicate IDs, cross-muscle candidates, or any server-side workout progress.
+- The existing Training Execution row and order are preserved; only the formal replacement ID and supported plan snapshot fields are updated.
+- Risk signals are bounded to six and derived deterministically from the last 14 days of normalized Body Feedback and workout history.
+- Feedback without an `exerciseId` remains visible as a general risk; only exact formal IDs are linked to a current exercise.
+- Hardcoded replacement exercises and the fixed right-shoulder warning were removed without changing the established modal/card layout.
+
 ## Open Risks
 - Historical snapshot fields may be absent in legacy records.
 - The first live Coach E2E response took approximately 55 seconds; observe warm and production latency before launch.
 - Authenticated visual walkthrough requires a user-authorized login session; build, adapter tests, and protected Preview API E2E are green.
 
 ## Release Blockers
-- No Phase 3 implementation or Staging E2E blocker remains.
+- No Phase 3 blocker remains.
 - Phase 6 must remove the application login password before the final Production launch, per product-owner direction; Preview authentication remains enabled for staging verification only.
 
 ## Next Checkpoint
-Create and review the Phase 3 PR, merge it to `integration/full-version`, then begin the next Full Version phase automatically.
+Implement the bounded Phase 4 domain and server foundation, then eliminate the replacement and risk mock dependencies.

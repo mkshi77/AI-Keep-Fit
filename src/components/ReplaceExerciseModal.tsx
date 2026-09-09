@@ -1,10 +1,10 @@
 import React from 'react';
 import { Exercise } from '../types';
-import { ALTERNATIVE_EXERCISES } from '../data/mockData';
 
 interface ReplaceExerciseModalProps {
   exercise: Exercise | null;
   isOpen: boolean;
+  alternatives: Exercise[];
   onClose: () => void;
   onSelectAlternative: (newExercise: Exercise) => void;
 }
@@ -12,12 +12,11 @@ interface ReplaceExerciseModalProps {
 export const ReplaceExerciseModal: React.FC<ReplaceExerciseModalProps> = ({
   exercise,
   isOpen,
+  alternatives,
   onClose,
   onSelectAlternative,
 }) => {
   if (!isOpen || !exercise) return null;
-
-  const alternatives = ALTERNATIVE_EXERCISES[exercise.id] || [];
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/75 backdrop-blur-sm animate-fade-in select-none">
@@ -30,7 +29,7 @@ export const ReplaceExerciseModal: React.FC<ReplaceExerciseModalProps> = ({
           <div>
             <h3 className="text-base font-bold text-white tracking-tight">替换动作</h3>
             <p className="text-xs text-neutral-400 mt-0.5">
-              器械被占或身体不适？一键换为同肌群备选方案
+              从已启用动作库中选择同目标肌群备选方案
             </p>
           </div>
           <button
