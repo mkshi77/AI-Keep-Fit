@@ -26,8 +26,8 @@ integration/phase-3-ai-coach
 - [x] Derive risk signals from normalized Body Feedback and workout history without fabricated medical claims
 - [x] Replace hardcoded alternative exercises and right-shoulder warning without changing the visual design
 - [x] Add unit/integration tests
-- [ ] Run lint/test/build
-- [ ] Deploy Preview and execute authenticated Staging E2E
+- [x] Run lint/test/build
+- [x] Deploy Preview and execute authenticated Staging E2E
 - [ ] Create and review Phase 4 PR
 - [ ] Merge to integration/full-version
 
@@ -112,10 +112,20 @@ Phase 4 local foundation checkpoint.
 - Feedback without an `exerciseId` remains visible as a general risk; only exact formal IDs are linked to a current exercise.
 - Hardcoded replacement exercises and the fixed right-shoulder warning were removed without changing the established modal/card layout.
 
+Phase 4 authenticated Staging E2E PASS on Vercel Preview `dpl_HA9J9u42NAtZC5JeEqhSjPCSjsWf`.
+- Application login and protected Safety GET passed through Vercel Deployment Protection.
+- Safety returned normalized risk signals without exposing Raw Notion properties.
+- A Preview-only, uncommitted fixture created one synthetic same-muscle Exercise Library candidate and one unstarted Training Execution row in isolated Staging.
+- The production Replacement API found the candidate, persisted the replacement, returned the replacement `exerciseId`, restored the original action, and returned the original `exerciseId`.
+- The synthetic training row and library candidate were moved to Notion trash using the 2026-03-11 `in_trash` contract.
+- The known Phase 3 synthetic Body Feedback verification record was also moved to trash; no synthetic records remain active.
+- The fixture endpoint was removed before the final Phase 4 deployment and is not part of Git history.
+
 ## Open Risks
 - Historical snapshot fields may be absent in legacy records.
 - The first live Coach E2E response took approximately 55 seconds; observe warm and production latency before launch.
 - Authenticated visual walkthrough requires a user-authorized login session; build, adapter tests, and protected Preview API E2E are green.
+- The current Staging Exercise Library has no two permanent enabled actions with the same target-muscle value; populate reviewed alternatives before Production launch so the replacement UI is useful without synthetic fixtures.
 
 ## Release Blockers
 - No Phase 3 blocker remains.
