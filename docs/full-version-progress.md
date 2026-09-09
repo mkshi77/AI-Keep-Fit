@@ -1,30 +1,31 @@
 # AI-Keep-Fit Full Version Progress
 
 ## Current Phase
-Phase 2B - Records / Analytics
+Phase 2C - Body Weight
 
 Phase 2A resumed after Codex transport/parser interruption.
 Recovered from existing working tree; no reset performed.
 
 ## Current Branch
-integration/phase-2b-records-analytics
+integration/phase-2c-body-weight
 
 ## Completed Phases
 - Phase 1A - PASS
 - Phase 1B - PASS
 - Phase 1C - PASS
 - Phase 2A - PASS + merged (PR #4, merge `02f249bde8cf794ca74d0aecade234e8866929d9`)
+- Phase 2B - PASS + merged (PR #5, merge `adb5886b87b23d2659eb0a6539253d9b47188fa6`)
 
 ## Current Tasks
-- [x] Audit RecordsView data dependencies and preserve the existing UI
-- [x] Define the Records / Analytics adapter boundary
-- [x] Replace Production mock business data with Phase 2A APIs
-- [x] Add loading, empty, warning, and error states
-- [x] Add unit/integration tests
-- [x] Run lint/test/build
-- [x] Deploy Preview
-- [x] Execute Staging E2E
-- [x] Create Phase 2B PR ([#5](https://github.com/mkshi77/AI-Keep-Fit/pull/5))
+- [x] Audit existing Body Weight persistence and data dependencies
+- [x] Check repository, schema map, and Vercel environment for an existing Body Weight source
+- [ ] Provision or identify the dedicated Body Weight Staging Data Source
+- [ ] Configure `NOTION_BODY_WEIGHT_DATA_SOURCE_ID` for Preview
+- [ ] Implement Body Weight domain, read/write API, and Records adapter
+- [ ] Add unit/integration tests
+- [ ] Run lint/test/build
+- [ ] Deploy Preview and execute Staging E2E
+- [ ] Create Phase 2C PR
 - [ ] Merge to integration/full-version
 
 ## Architecture Decisions
@@ -40,6 +41,7 @@ integration/phase-2b-records-analytics
 - No destructive migrations.
 - Phase 2A is read-only for existing Training Execution data.
 - Additive Body Feedback Data Source is pending staging creation.
+- Additive Body Weight Data Source is required before Phase 2C implementation can be validated.
 
 ## Staging Data Sources
 - Exercise Library - Staging
@@ -73,7 +75,7 @@ Phase 2B PASS on Vercel Preview `dpl_6b7WcWwuo7PdMeQQxKCTizH3YsPz`.
 - Authenticated visual walkthrough requires a user-authorized login session; build, adapter tests, and protected Preview API E2E are green.
 
 ## Release Blockers
-- None for Phase 2A implementation work; Body Feedback source creation remains a later migration checkpoint.
+- Phase 2C requires a dedicated Body Weight Staging Data Source and Preview environment mapping; neither currently exists.
 
 ## Next Checkpoint
-Create and review the Phase 2B PR, merge to `integration/full-version`, then begin Phase 2C.
+Hard stop: identify or provision the Body Weight Staging Data Source, then configure its Preview data source ID before implementing write-back.

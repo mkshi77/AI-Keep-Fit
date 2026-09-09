@@ -2,7 +2,7 @@
 
 ## Phase Gates
 - [x] Phase 2A - History Foundation
-- [ ] Phase 2B - Records / Analytics
+- [x] Phase 2B - Records / Analytics
 - [ ] Phase 2C - Body Weight
 - [ ] Phase 3 - AI Coach
 - [ ] Phase 4 - Replacement + Risk Engine

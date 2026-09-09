@@ -24,6 +24,9 @@
 | bodyFeedback.bodyPart | 部位 / Body Part | 部位 / Body Part | select or rich_text | Pending dedicated source |
 | bodyFeedback.score | 评分 / Score | 评分 / Score | number | Pending dedicated source |
 | bodyFeedback.description | 描述 / Description | 描述 / Description | rich_text | Pending dedicated source |
+| bodyWeight.date | 日期 / Date | 日期 / Date | date | Dedicated source required |
+| bodyWeight.weightKg | 体重kg / Weight kg | 体重kg / Weight kg | number | Dedicated source required |
+| bodyWeight.condition | 称重状态 / Condition | 称重状态 / Condition | select | 晨起空腹 / 练后即刻 / 晚间称重 |
 
 ## Legacy Compatibility
 - Existing `左右差异` remains Select in Production and must not be renamed or retyped.
