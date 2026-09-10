@@ -4,6 +4,7 @@ import { ExerciseModal } from './ExerciseModal';
 import { ReplaceExerciseModal } from './ReplaceExerciseModal';
 import type { TodayWorkout } from '../domain/workout';
 import type { WorkoutSafetyResult } from '../domain/replacementRisk';
+import type { WorkoutMaintenanceResult } from '../domain/maintenance';
 
 interface TodayViewProps {
   exercises: Exercise[];
@@ -12,6 +13,7 @@ interface TodayViewProps {
   error?: string;
   onRetry?: () => void;
   safety?: WorkoutSafetyResult;
+  maintenance?: WorkoutMaintenanceResult;
   replacementOptions?: Record<string, Exercise[]>;
   onStartWorkout: () => void;
   isTodayCompleted?: boolean;
@@ -27,6 +29,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
   error = '',
   onRetry,
   safety,
+  maintenance,
   replacementOptions = {},
   onStartWorkout,
   isTodayCompleted = false,
@@ -69,53 +72,45 @@ export const TodayView: React.FC<TodayViewProps> = ({
           </div>
         </div>
 
-        {/* 7-Day Weekly Streak Track */}
-        <div className="bg-[#141416] p-3 rounded-2xl border border-white/5 flex flex-col gap-2">
+        {/* Current-week progress derived from normalized history */}
+        {maintenance && <div className="bg-[#141416] p-3 rounded-2xl border border-white/5 flex flex-col gap-2">
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-1.5 text-neutral-300 font-medium">
               <span className="text-[#A4FF4F]">🔥</span>
-              <span>本周目标 4 次 · {isTodayCompleted ? '已完成 3 次' : '已完成 2 次'}</span>
+              <span>本周计划 {maintenance.weekly.plannedSessions} 次 · 已训练 {maintenance.weekly.completedSessions} 次</span>
             </div>
             <span className="text-[11px] text-[#A4FF4F] font-semibold">
               {isTodayCompleted ? '今日已打卡 ✓' : '待今日打卡'}
             </span>
           </div>
           <div className="grid grid-cols-7 gap-1.5 pt-0.5">
-            {[
-              { day: '一', date: '07', done: isTodayCompleted, isToday: true },
-              { day: '二', date: '08', done: false, isToday: false },
-              { day: '三', date: '09', done: true, isToday: false },
-              { day: '四', date: '10', done: false, isToday: false },
-              { day: '五', date: '11', done: true, isToday: false },
-              { day: '六', date: '12', done: false, isToday: false },
-              { day: '日', date: '13', done: false, isToday: false },
-            ].map((d) => (
+            {maintenance.weekly.days.map((d) => (
               <div
-                key={d.day}
+                key={d.date}
                 className={`flex flex-col items-center py-1.5 rounded-xl transition-all ${
                   d.isToday
                     ? 'bg-white/10 ring-1 ring-[#A4FF4F]/50'
-                    : d.done
+                    : d.completed
                     ? 'bg-[#18181B]'
                     : 'bg-transparent'
                 }`}
               >
-                <span className="text-[10px] text-neutral-400 font-medium">{d.day}</span>
+                <span className="text-[10px] text-neutral-400 font-medium">{d.dayLabel}</span>
                 <div
                   className={`w-5 h-5 rounded-full mt-1 flex items-center justify-center text-[10px] font-bold ${
-                    d.done
+                    d.completed
                       ? 'bg-[#A4FF4F] text-black shadow-sm shadow-[#A4FF4F]/30'
-                      : d.isToday
+                    : d.isToday
                       ? 'border border-[#A4FF4F] text-[#A4FF4F]'
-                      : 'text-neutral-500'
+                      : d.planned ? 'border border-white/20 text-neutral-400' : 'text-neutral-500'
                   }`}
                 >
-                  {d.done ? '✓' : d.date}
+                  {d.completed ? '✓' : d.date.slice(-2)}
                 </div>
               </div>
             ))}
           </div>
-        </div>
+        </div>}
 
         {/* Grounded risk reminder derived from normalized feedback/history */}
         {primaryRisk && !isTodayCompleted && (
@@ -147,13 +142,13 @@ export const TodayView: React.FC<TodayViewProps> = ({
           </div>
         )}
 
-        {/* AI 教练提醒 / 练后总结 Card */}
+        {/* Grounded training reminder / completion card */}
         {isTodayCompleted ? (
           <div className="p-4 rounded-xl bg-[#161618] border border-[#A4FF4F]/25 flex flex-col gap-2.5 transition-all">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#A4FF4F]" />
-                <span className="text-xs text-[#A4FF4F] font-semibold tracking-tight">AI 练后点评</span>
+                <span className="text-xs text-[#A4FF4F] font-semibold tracking-tight">训练记录</span>
               </div>
               <span className="text-[10px] text-[#A4FF4F] font-medium px-2 py-0.5 rounded-full bg-[#A4FF4F]/10 border border-[#A4FF4F]/20">
                 训练已达成
@@ -161,34 +156,34 @@ export const TodayView: React.FC<TodayViewProps> = ({
             </div>
             <div className="flex flex-col gap-1.5">
               <p className="text-[13px] text-neutral-200 leading-relaxed font-normal">
-                今日训练已圆满达成！3 个动作共 12 组均已保质完成，动作离心控制与节奏稳定。
+                今日已完成 {exercises.length} 个动作，共 {exercises.reduce((sum, exercise) => sum + exercise.sets.filter((set) => set.isCompleted).length, 0)} 个训练组。
               </p>
               <p className="text-[12px] text-neutral-400 leading-relaxed font-normal flex items-center gap-1.5">
-                <span className="text-[#A4FF4F] font-bold leading-none">•</span> 建议重点做好胸背与腿部静态拉伸，并在 1 小时内适量补充蛋白质与水分。
+                <span className="text-[#A4FF4F] font-bold leading-none">•</span> 训练复盘与下次计划建议可在总结页查看。
               </p>
             </div>
           </div>
-        ) : (
+        ) : maintenance?.insight ? (
           <div className="p-4 rounded-xl bg-[#161618] border border-[#1E1E22] flex flex-col gap-2.5 transition-all">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#A4FF4F] animate-pulse" />
-                <span className="text-xs text-[#A4FF4F] font-semibold tracking-tight">AI 教练重点提醒</span>
+                <span className="text-xs text-[#A4FF4F] font-semibold tracking-tight">训练重点提醒</span>
               </div>
               <span className="text-[10px] text-neutral-500 font-medium px-1.5 py-0.5 rounded bg-[#1C1C20]">
-                针对今日状态
+                基于正式记录
               </span>
             </div>
             <div className="flex flex-col gap-1.5">
               <p className="text-[13px] text-neutral-200 leading-relaxed font-normal">
-                上次卧推整体轨迹稳定，最后两组均达成预期 RIR 2。今天优先保证负荷质量，把目标次数做扎实。
+                {maintenance.insight.title}：{maintenance.insight.summary}
               </p>
               <p className="text-[12px] text-neutral-400 leading-relaxed font-normal flex items-center gap-1.5">
-                <span className="text-[#A4FF4F] font-bold leading-none">•</span> 下降段保持 2 秒离心控制，背阔肌收紧保持稳定承托。
+                <span className="text-[#A4FF4F] font-bold leading-none">•</span> {maintenance.insight.focus}
               </p>
             </div>
           </div>
-        )}
+        ) : null}
 
         {/* 今日动作 Header */}
         <div className="flex flex-col">

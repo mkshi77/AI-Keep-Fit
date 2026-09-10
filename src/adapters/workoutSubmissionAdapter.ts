@@ -1,4 +1,5 @@
 import type { TodayWorkout, WorkoutCompletionPayload } from '../domain/workout';
+import type { WorkoutReviewRequest } from '../domain/maintenance';
 import type { Exercise } from '../types';
 import type { WorkoutDraft } from '../state/workoutDraft';
 import { exerciseFeedbackFromUI } from './feedbackAdapter';
@@ -44,6 +45,30 @@ export const buildWorkoutCompletionPayload = (
     trainingDay: workout.trainingDay,
     submissionId: draft.submissionId,
     durationMinutes: Math.max(0, Math.floor((now - draft.startedAt) / 60000)),
+    exercises,
+  };
+};
+
+export const buildWorkoutReviewRequest = (payload: WorkoutCompletionPayload): WorkoutReviewRequest => {
+  const exercises = payload.exercises.map((exercise) => ({
+    exerciseId: exercise.exerciseId,
+    exerciseName: exercise.name,
+    completedSets: exercise.sets.filter((set) => set.completed).length,
+    plannedSets: exercise.sets.length,
+    ...(exercise.feedback.rir == null ? {} : { rir: exercise.feedback.rir }),
+    ...(exercise.feedback.discomfort == null ? {} : { discomfort: exercise.feedback.discomfort }),
+  }));
+  const completedSets = exercises.reduce((sum, exercise) => sum + exercise.completedSets, 0);
+  return {
+    date: payload.date,
+    trainingDay: payload.trainingDay,
+    durationMinutes: payload.durationMinutes ?? 0,
+    completedSets,
+    plannedSets: exercises.reduce((sum, exercise) => sum + exercise.plannedSets, 0),
+    totalVolume: payload.exercises.reduce((total, exercise) => total + exercise.sets.reduce((sum, set) => {
+      if (!set.completed) return sum;
+      return sum + Number(set.weight) * Number(set.reps);
+    }, 0), 0),
     exercises,
   };
 };
