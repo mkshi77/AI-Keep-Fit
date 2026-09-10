@@ -29,7 +29,7 @@ codex/phase-6-release-hardening
 - [x] Add authentication and rate-limit tests
 - [x] Run lint/test/build and production dependency audit
 - [ ] Confirm every Production Notion data source and environment mapping
-- [ ] Deploy and execute authenticated Preview E2E
+- [x] Deploy and execute authenticated Preview E2E
 - [ ] Review and merge Phase 6 into `integration/full-version`
 - [ ] Review and merge the full integration branch into `main`
 - [ ] Remove the Production app password, deploy, and execute read-only Production smoke tests
@@ -135,6 +135,12 @@ Phase 5 authenticated Staging E2E PASS on Vercel Preview `dpl_2DWU2DJrMMk2R3irVf
 - Live Gemini review accepted an explicitly synthetic, non-persisted training summary and returned a bounded review with two future-plan actions.
 - The future plan remained advisory; no Notion record or training plan was written or modified.
 - Preview authentication remained branch-scoped, and the temporary local Cookie was deleted after verification.
+
+Phase 6 authenticated Staging E2E PASS on Vercel Preview `dpl_mUYYYHNY4dTs4qoAxsqy8SxaN1rS`.
+- The deployment was Ready and matched branch `codex/phase-6-release-hardening`.
+- Unauthenticated application access remained rejected behind the Preview login boundary; a valid Preview-only session passed.
+- Today, all-history, weekly overview, body-weight, body-feedback, safety, and maintenance GET routes returned normalized domain envelopes.
+- No response exposed Raw Notion `properties`, and no Notion record was written or modified.
 
 ## Open Risks
 - Historical snapshot fields may be absent in legacy records.
