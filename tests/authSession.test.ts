@@ -25,6 +25,23 @@ beforeEach(() => {
 });
 
 describe('production auth session', () => {
+  it('runs passwordless only when Production intentionally omits the password', async () => {
+    vi.stubEnv('APP_ACCESS_PASSWORD', '');
+    const response = makeResponse();
+    await sessionHandler(request('GET', {}), response);
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toEqual({ authenticated: true });
+  });
+
+  it('fails closed when Preview omits the password', async () => {
+    vi.stubEnv('VERCEL_ENV', 'preview');
+    vi.stubEnv('APP_ACCESS_PASSWORD', '');
+    const response = makeResponse();
+    await sessionHandler(request('GET', {}), response);
+    expect(response.statusCode).toBe(503);
+    expect(response.body).toEqual({ status: 503, error: '访问尚未配置' });
+  });
+
   it('allows a same-origin GET session check without an Origin header', async () => {
     const response = makeResponse();
     await sessionHandler(request('GET', { cookie: createSessionCookie('test-password') }), response);

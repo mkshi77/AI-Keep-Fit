@@ -10,6 +10,10 @@ import recordsHistoryHandler from "./api/records/history.js";
 import recordsOverviewHandler from "./api/records/overview.js";
 import bodyFeedbackHandler from "./api/records/body-feedback.js";
 import bodyWeightHandler from "./api/records/body-weight.js";
+import safetyHandler from "./api/workout/safety.js";
+import replaceHandler from "./api/workout/replace.js";
+import maintenanceHandler from "./api/workout/maintenance.js";
+import reviewHandler from "./api/workout/review.js";
 
 dotenv.config();
 
@@ -20,6 +24,10 @@ app.use(express.json());
 app.all('/api/auth/session', (req, res) => { void sessionHandler(req, res); });
 app.all('/api/workout/today', (req, res) => { void todayWorkoutHandler(req, res); });
 app.all('/api/workout/complete', (req, res) => { void completeWorkoutHandler(req, res); });
+app.all('/api/workout/safety', (req, res) => { void safetyHandler(req, res); });
+app.all('/api/workout/replace', (req, res) => { void replaceHandler(req, res); });
+app.all('/api/workout/maintenance', (req, res) => { void maintenanceHandler(req, res); });
+app.all('/api/workout/review', (req, res) => { void reviewHandler(req, res); });
 app.all('/api/records/history', (req, res) => { void recordsHistoryHandler(req, res); });
 app.all('/api/records/overview', (req, res) => { void recordsOverviewHandler(req, res); });
 app.all('/api/records/body-feedback', (req, res) => { void bodyFeedbackHandler(req, res); });

@@ -6,7 +6,7 @@
 - [x] Phase 2C - Body Weight
 - [x] Phase 3 - AI Coach
 - [x] Phase 4 - Replacement + Risk Engine
-- [ ] Phase 5 - AI Maintenance + Future Plan
+- [x] Phase 5 - AI Maintenance + Future Plan
 - [ ] Phase 6 - Release Hardening
 
 ## Engineering Gates
@@ -15,7 +15,7 @@
 - [x] npm run build PASS
 - [x] Staging E2E PASS
 - [x] No Secret leak
-- [ ] No Production mock business dependency
+- [x] No Production mock business dependency
 - [x] No destructive Notion migration
 - [x] exerciseId immutable
 - [x] History snapshots preserved
@@ -27,4 +27,4 @@
 - [ ] Production Notion schema confirmed
 - [ ] Production environment mapping confirmed
 - [ ] Production read-only smoke test PASS
-- [ ] Rollback plan documented
+- [x] Rollback plan documented

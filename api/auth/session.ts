@@ -1,4 +1,4 @@
-import { authFailure, clearSessionCookie, createSessionCookie, validateAccessPassword } from '../../server/auth.js';
+import { authFailure, clearSessionCookie, createSessionCookie, isOpenProduction, validateAccessPassword } from '../../server/auth.js';
 import { isAllowedBrowserOrigin, type ApiRequest, type ApiResponse } from '../../server/http.js';
 
 export default async function handler(request: ApiRequest, response: ApiResponse) {
@@ -21,6 +21,8 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     response.setHeader('Set-Cookie', clearSessionCookie());
     return response.status(200).json({ authenticated: false });
   }
+
+  if (isOpenProduction()) return response.status(200).json({ authenticated: true });
 
   if (!isAllowedBrowserOrigin(request)) return response.status(403).json({ error: '不允许的请求来源' });
   if (!validateAccessPassword((request.body as { password?: unknown } | undefined)?.password)) {
