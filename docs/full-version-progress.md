@@ -1,13 +1,13 @@
 # AI-Keep-Fit Full Version Progress
 
 ## Current Phase
-Phase 5 - AI Maintenance + Future Plan
+Phase 6 - Release Hardening
 
 Phase 2A resumed after Codex transport/parser interruption.
 Recovered from existing working tree; no reset performed.
 
 ## Current Branch
-integration/phase-5-ai-maintenance
+codex/phase-6-release-hardening
 
 ## Completed Phases
 - Phase 1A - PASS
@@ -18,18 +18,21 @@ integration/phase-5-ai-maintenance
 - Phase 2C - PASS + merged (PR #6, merge `b36f6886aabd39642d805bd39880e075548402b9`)
 - Phase 3 - PASS + merged (PR #7, merge `3f11befe37707fd68ec69b8887b8a6e88b1fae54`)
 - Phase 4 - PASS + merged (PR #8, merge `88cbc4234f5635ea3e89f335288033315103deab`)
+- Phase 5 - PASS + merged (PR #9, merge `f4df0fca1fd1bed2f53aac3c21fe6b8ba6ce5366`)
 
 ## Current Tasks
-- [x] Audit remaining hardcoded weekly progress, pre-workout reminders, workout review, and future-plan placeholders
-- [x] Derive the current week and pre-workout focus from normalized workout history
-- [x] Add bounded AI workout review and future-plan proposal domains
-- [x] Keep future-plan output advisory-only; never rewrite Notion automatically
-- [x] Remove fixed dates, goals, workout facts, PR badges, and review copy from Production UI
-- [x] Add unit tests
-- [x] Run lint/test/build
-- [x] Deploy Preview and execute authenticated Staging E2E
-- [x] Create and review Phase 5 PR
-- [ ] Merge to integration/full-version
+- [x] Preserve password protection for Preview/local while making Production intentionally passwordless
+- [x] Protect remaining read endpoints in Preview/local
+- [x] Add bounded per-client rate limits to live AI endpoints
+- [x] Expose all workout routes through the local Express adapter
+- [x] Resolve the Express dependency audit without application refactoring
+- [x] Add authentication and rate-limit tests
+- [x] Run lint/test/build and production dependency audit
+- [ ] Confirm every Production Notion data source and environment mapping
+- [ ] Deploy and execute authenticated Preview E2E
+- [ ] Review and merge Phase 6 into `integration/full-version`
+- [ ] Review and merge the full integration branch into `main`
+- [ ] Remove the Production app password, deploy, and execute read-only Production smoke tests
 
 ## Architecture Decisions
 - Notion remains the formal business source of truth.
@@ -55,12 +58,15 @@ integration/phase-5-ai-maintenance
 
 ## Production Data Sources
 - Exercise Library
-- Training Execution
+- Training Execution (`416617d0-fe26-4720-9a9c-fdb6a43eeff4`)
+- Body Weight (`7dab9b26-60ee-41b4-a734-dd8afe16606f`)
+- Body Feedback - to be created additively before Production launch
 
 ## Tests
 - `npm run lint` - PASS
 - `npm test` - PASS (71 tests)
 - Phase 5 `npm test` - PASS (75 tests)
+- Phase 6 `npm test` - PASS (79 tests)
 - `npm run build` - PASS locally and in Vercel Preview
 
 ## E2E Status
@@ -138,8 +144,9 @@ Phase 5 authenticated Staging E2E PASS on Vercel Preview `dpl_2DWU2DJrMMk2R3irVf
 - AI future-plan suggestions are intentionally not persisted; the user retains control of the formal Notion plan.
 
 ## Release Blockers
-- No Phase 3 blocker remains.
+- Production Exercise Library and Body Feedback data-source IDs must be mapped before launch.
+- `GEMINI_API_KEY` must be enabled for Production without exposing or rotating the existing secret.
 - Phase 6 must remove the application login password before the final Production launch, per product-owner direction; Preview authentication remains enabled for staging verification only.
 
 ## Next Checkpoint
-Deploy Phase 5 to Preview, verify normalized maintenance data and a live bounded AI review, then merge it into `integration/full-version`.
+Finish Production mappings, verify the hardened Preview, merge the full release, remove the Production password, and complete the Production smoke test.

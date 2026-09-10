@@ -1,10 +1,13 @@
 import { getWorkoutHistoryOverview } from '../../server/records.js';
 import type { ApiRequest, ApiResponse } from '../../server/http.js';
 import type { WorkoutHistoryOverview } from '../../src/domain/records.js';
+import { authFailure } from '../../server/auth.js';
 
 export default async function handler(request: ApiRequest, response: ApiResponse) {
   response.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   if (request.method !== 'GET') { response.setHeader('Allow', 'GET'); return response.status(405).json({ error: 'Method not allowed' }); }
+  const auth = authFailure(request);
+  if (auth) return response.status(auth.status).json(auth);
   try {
     const period = new URL(request.url ?? '', 'http://localhost').searchParams.get('period');
     if (period && period !== 'week') throw new Error('无效概览周期');

@@ -2,6 +2,7 @@ import { authFailure } from '../server/auth.js';
 import { generateCoachResponse, validateCoachRequest } from '../server/coach.js';
 import { isAllowedBrowserOrigin, type ApiRequest, type ApiResponse } from '../server/http.js';
 import type { CoachRequest } from '../src/domain/coach.js';
+import { consumeRateLimit } from '../server/rateLimit.js';
 
 export default async function handler(request: ApiRequest, response: ApiResponse) {
   response.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
@@ -12,6 +13,11 @@ export default async function handler(request: ApiRequest, response: ApiResponse
   if (!isAllowedBrowserOrigin(request)) return response.status(403).json({ error: '不允许的请求来源' });
   const auth = authFailure(request);
   if (auth) return response.status(auth.status).json(auth);
+  const rate = consumeRateLimit(request, 'coach', 12);
+  if (!rate.allowed) {
+    response.setHeader('Retry-After', String(rate.retryAfterSeconds));
+    return response.status(429).json({ error: 'AI 请求过于频繁，请稍后再试' });
+  }
   let input: CoachRequest;
   try {
     input = validateCoachRequest(request.body);
