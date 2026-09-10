@@ -1,13 +1,13 @@
 # AI-Keep-Fit Full Version Progress
 
 ## Current Phase
-Phase 6 - Release Hardening
+Full Version - RELEASED
 
 Phase 2A resumed after Codex transport/parser interruption.
 Recovered from existing working tree; no reset performed.
 
 ## Current Branch
-codex/phase-6-release-hardening
+main
 
 ## Completed Phases
 - Phase 1A - PASS
@@ -19,6 +19,9 @@ codex/phase-6-release-hardening
 - Phase 3 - PASS + merged (PR #7, merge `3f11befe37707fd68ec69b8887b8a6e88b1fae54`)
 - Phase 4 - PASS + merged (PR #8, merge `88cbc4234f5635ea3e89f335288033315103deab`)
 - Phase 5 - PASS + merged (PR #9, merge `f4df0fca1fd1bed2f53aac3c21fe6b8ba6ce5366`)
+- Phase 6 - PASS + merged (PR #10, merge `1c166a5924def960fb77c9952a3fe6b95bd8c968`)
+- Full Version - PASS + released (PR #11, merge `acb383f0a2365722263d93c3e3395de8dba358d3`)
+- Production History bounds hotfixes - PASS + merged (PR #12 `df1b1af6d4c86dc2ccb21af33123d2f31f4baf93`, PR #13 `02aa9988841da7d89e4f70e1ddc84efeec1c1ff9`)
 
 ## Current Tasks
 - [x] Preserve password protection for Preview/local while making Production intentionally passwordless
@@ -28,11 +31,11 @@ codex/phase-6-release-hardening
 - [x] Resolve the Express dependency audit without application refactoring
 - [x] Add authentication and rate-limit tests
 - [x] Run lint/test/build and production dependency audit
-- [ ] Confirm every Production Notion data source and environment mapping
+- [x] Confirm every Production Notion data source and environment mapping
 - [x] Deploy and execute authenticated Preview E2E
-- [ ] Review and merge Phase 6 into `integration/full-version`
-- [ ] Review and merge the full integration branch into `main`
-- [ ] Remove the Production app password, deploy, and execute read-only Production smoke tests
+- [x] Review and merge Phase 6 into `integration/full-version`
+- [x] Review and merge the full integration branch into `main`
+- [x] Remove the Production app password, deploy, and execute read-only Production smoke tests
 
 ## Architecture Decisions
 - Notion remains the formal business source of truth.
@@ -57,16 +60,17 @@ codex/phase-6-release-hardening
 - Body Feedback - Staging (`0ff69ca3-b139-4e67-a39a-d6d004ee0d1c`)
 
 ## Production Data Sources
-- Exercise Library
+- Exercise Library (`fe419cb1-2fe6-4bd9-b484-431c151a27e3`)
 - Training Execution (`416617d0-fe26-4720-9a9c-fdb6a43eeff4`)
 - Body Weight (`7dab9b26-60ee-41b4-a734-dd8afe16606f`)
-- Body Feedback - to be created additively before Production launch
+- Body Feedback (`0010b5a7-ecf7-4c7f-bb55-a498b69fecd0`)
 
 ## Tests
 - `npm run lint` - PASS
 - `npm test` - PASS (71 tests)
 - Phase 5 `npm test` - PASS (75 tests)
 - Phase 6 `npm test` - PASS (79 tests)
+- Production hotfix `npm test` - PASS (81 tests)
 - `npm run build` - PASS locally and in Vercel Preview
 
 ## E2E Status
@@ -142,17 +146,22 @@ Phase 6 authenticated Staging E2E PASS on Vercel Preview `dpl_mUYYYHNY4dTs4qoAxs
 - Today, all-history, weekly overview, body-weight, body-feedback, safety, and maintenance GET routes returned normalized domain envelopes.
 - No response exposed Raw Notion `properties`, and no Notion record was written or modified.
 
+Full Version Production release PASS on Vercel deployment `dpl_BB4MwZfQ8QE9GnFAmvBXaSggQstA` at `https://ai-keep-fit.vercel.app`.
+- Production is intentionally passwordless; `APP_ACCESS_PASSWORD` was removed before the final release.
+- Training Execution, Exercise Library, Body Weight, Body Feedback, Notion token, time zone, and Gemini mappings were confirmed for Production.
+- Home and compiled application assets returned HTTP 200; the public session endpoint returned `authenticated: true` without a cookie.
+- Today, `7d`, `all`, weekly overview, Body Weight, and Body Feedback returned normalized domain responses without Raw Notion `properties`.
+- Production smoke found and closed two History contract gaps: future plans are excluded, requested period bounds are enforced after aggregation, and legacy sessions always return numeric `durationMinutes`.
+- A cross-origin Body Weight POST returned HTTP 403 before validation or persistence. Production verification did not write or modify Notion records.
+
 ## Open Risks
 - Historical snapshot fields may be absent in legacy records.
 - The first live Coach E2E response took approximately 55 seconds; observe warm and production latency before launch.
-- Authenticated visual walkthrough requires a user-authorized login session; build, adapter tests, and protected Preview API E2E are green.
-- The current Staging Exercise Library has no two permanent enabled actions with the same target-muscle value; populate reviewed alternatives before Production launch so the replacement UI is useful without synthetic fixtures.
+- The current Staging Exercise Library has no two permanent enabled actions with the same target-muscle value; populate reviewed alternatives before relying on replacement suggestions in a future staging cycle.
 - AI future-plan suggestions are intentionally not persisted; the user retains control of the formal Notion plan.
 
 ## Release Blockers
-- Production Exercise Library and Body Feedback data-source IDs must be mapped before launch.
-- `GEMINI_API_KEY` must be enabled for Production without exposing or rotating the existing secret.
-- Phase 6 must remove the application login password before the final Production launch, per product-owner direction; Preview authentication remains enabled for staging verification only.
+None.
 
 ## Next Checkpoint
-Finish Production mappings, verify the hardened Preview, merge the full release, remove the Production password, and complete the Production smoke test.
+Operate and monitor the released Full Version; keep Preview authentication and Production data-source isolation intact for future phases.
