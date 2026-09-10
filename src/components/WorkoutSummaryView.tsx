@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Exercise } from '../types';
 import type { WorkoutCompletionResult } from '../domain/workout';
 import type { WorkoutDraftSummary } from '../state/workoutDraft';
+import type { WorkoutReviewResult } from '../domain/maintenance';
 
 interface WorkoutSummaryViewProps {
   exercises: Exercise[];
@@ -10,6 +11,11 @@ interface WorkoutSummaryViewProps {
     status: 'idle' | 'submitting' | 'failed' | 'submitted';
     error?: string;
     result?: WorkoutCompletionResult;
+  };
+  reviewState: {
+    status: 'idle' | 'loading' | 'ready' | 'failed';
+    result?: WorkoutReviewResult;
+    error?: string;
   };
   onSubmitWorkout: () => void;
   onReturnToday: () => void;
@@ -21,6 +27,7 @@ export const WorkoutSummaryView: React.FC<WorkoutSummaryViewProps> = ({
   exercises,
   summary,
   submissionState,
+  reviewState,
   onSubmitWorkout,
   onReturnToday,
   onAskCoach,
@@ -28,8 +35,8 @@ export const WorkoutSummaryView: React.FC<WorkoutSummaryViewProps> = ({
 }) => {
   const [feedbackSaved, setFeedbackSaved] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<'great' | 'issue'>('great');
-  const [selectedPart, setSelectedPart] = useState<string>('右肩前侧');
-  const [discomfortScore, setDiscomfortScore] = useState<number>(3);
+  const [selectedPart, setSelectedPart] = useState<string>('肩部');
+  const [discomfortScore, setDiscomfortScore] = useState<number>(1);
   const [discomfortNote, setDiscomfortNote] = useState<string>('');
 
   const { completedSets, totalVolume, completionRate, durationMinutes } = summary;
@@ -82,18 +89,7 @@ export const WorkoutSummaryView: React.FC<WorkoutSummaryViewProps> = ({
 
           {/* Headline & Motto */}
           <h1 className="text-2xl font-bold tracking-tight text-white mt-3">{headline}</h1>
-          <p className="text-sm text-neutral-300 mt-1 font-normal tracking-wide">今天长了一点 · 状态极佳</p>
-        </section>
-
-        {/* TODO: Phase Records / PR — do not compute or display fake PRs here. */}
-        <section className="bg-[#141416] rounded-2xl p-3.5 border border-white/[0.04] flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-[#A4FF4F]/10 flex items-center justify-center text-xl shrink-0">🏆</div>
-            <div>
-              <p className="text-xs font-bold text-[#A4FF4F]">PR 记录</p>
-              <p className="text-xs text-neutral-300 mt-0.5">Phase Records / PR 接入后显示，当前为占位。</p>
-            </div>
-          </div>
+          <p className="text-sm text-neutral-300 mt-1 font-normal tracking-wide">{completedSets} / {summary.totalPlannedSets} 组完成</p>
         </section>
 
         {/* Notion sync state */}
@@ -151,8 +147,7 @@ export const WorkoutSummaryView: React.FC<WorkoutSummaryViewProps> = ({
           </div>
         </section>
 
-        {/* Phase 1C placeholder: the existing AI review copy is not generated from the draft yet. */}
-        <section className="bg-[#141416] rounded-2xl p-4 border border-white/[0.04] relative">
+        {submissionState.status === 'submitted' && <section className="bg-[#141416] rounded-2xl p-4 border border-white/[0.04] relative">
           <div className="flex items-center space-x-1.5 mb-2">
             <div className="w-4 h-4 rounded-full bg-[#A4FF4F]/20 flex items-center justify-center">
               <svg className="w-2.5 h-2.5 text-[#A4FF4F] fill-current" viewBox="0 0 24 24">
@@ -161,15 +156,21 @@ export const WorkoutSummaryView: React.FC<WorkoutSummaryViewProps> = ({
             </div>
             <span className="text-xs font-semibold text-[#A4FF4F] tracking-wide">AI 教练点评</span>
           </div>
-          <p className="text-sm leading-relaxed text-neutral-200 font-normal whitespace-pre-line">
-            今天卧推输出比较稳定 💪
-            {'\n'}RIR 基本保持在目标范围，总容量突破 {totalVolume.toLocaleString()} kg。
-            {'\n'}划船动作发力充沛，最后一组降重合理，
-            {'\n'}下次先保持当前节奏，不急着大幅增加重量。
-          </p>
-        </section>
+          {reviewState.status === 'loading' && <p className="text-sm text-neutral-400 animate-pulse">AI 正在基于已同步训练数据生成复盘…</p>}
+          {reviewState.status === 'failed' && <p className="text-sm text-neutral-400">{reviewState.error || 'AI 训练复盘暂时不可用；训练数据已正常保存。'}</p>}
+          {reviewState.status === 'ready' && reviewState.result && <div className="space-y-3">
+            <p className="text-sm leading-relaxed text-neutral-200 font-normal whitespace-pre-line">{reviewState.result.review}</p>
+            <div className="border-t border-white/[0.06] pt-3">
+              <p className="text-xs font-semibold text-white">{reviewState.result.futurePlan.title}</p>
+              <ul className="mt-2 space-y-1.5">
+                {reviewState.result.futurePlan.actions.map((action) => <li key={action} className="text-xs text-neutral-300">• {action}</li>)}
+              </ul>
+              {reviewState.result.futurePlan.caution && <p className="mt-2 text-xs text-amber-300">{reviewState.result.futurePlan.caution}</p>}
+              <p className="mt-2 text-[10px] text-neutral-500">建议仅供下次训练参考，不会自动修改 Notion 计划。</p>
+            </div>
+          </div>}
+        </section>}
 
-        {/* Phase 1C placeholder: this body check-in remains local UI state and is not a formal submission. */}
         <section className="bg-[#141416] rounded-2xl p-4 border border-white/[0.04]">
           <div className="flex items-center justify-between mb-2.5">
             <div className="flex items-center space-x-2">
@@ -181,7 +182,7 @@ export const WorkoutSummaryView: React.FC<WorkoutSummaryViewProps> = ({
             </div>
             {feedbackSaved && (
               <span className="text-[11px] text-[#A4FF4F] font-semibold bg-[#A4FF4F]/10 px-2 py-0.5 rounded-full">
-                ✓ 已同步至健康档案
+                ✓ 已确认
               </span>
             )}
           </div>
@@ -235,7 +236,7 @@ export const WorkoutSummaryView: React.FC<WorkoutSummaryViewProps> = ({
                   <div>
                     <span className="text-[11px] text-neutral-400 font-medium block mb-1.5">点击不适部位：</span>
                     <div className="flex flex-wrap gap-1.5">
-                      {['右肩前侧', '左肩', '腰部/下背', '左膝关节', '手腕', '手肘'].map((part) => (
+                      {['肩部', '腰部/下背', '膝关节', '手腕', '手肘', '其他部位'].map((part) => (
                         <button
                           key={part}
                           type="button"
@@ -348,11 +349,6 @@ export const WorkoutSummaryView: React.FC<WorkoutSummaryViewProps> = ({
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 mr-1">
-                    {idx === 1 && (
-                      <span className="text-[10px] bg-[#A4FF4F]/20 text-[#A4FF4F] px-1.5 py-0.5 rounded font-medium">
-                        PR
-                      </span>
-                    )}
                     <svg className="w-4 h-4 text-neutral-500" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
                       <path d="M9 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>

@@ -1,13 +1,13 @@
 # AI-Keep-Fit Full Version Progress
 
 ## Current Phase
-Phase 4 - Replacement + Risk Engine
+Phase 5 - AI Maintenance + Future Plan
 
 Phase 2A resumed after Codex transport/parser interruption.
 Recovered from existing working tree; no reset performed.
 
 ## Current Branch
-integration/phase-3-ai-coach
+integration/phase-5-ai-maintenance
 
 ## Completed Phases
 - Phase 1A - PASS
@@ -17,18 +17,18 @@ integration/phase-3-ai-coach
 - Phase 2B - PASS + merged (PR #5, merge `adb5886b87b23d2659eb0a6539253d9b47188fa6`)
 - Phase 2C - PASS + merged (PR #6, merge `b36f6886aabd39642d805bd39880e075548402b9`)
 - Phase 3 - PASS + merged (PR #7, merge `3f11befe37707fd68ec69b8887b8a6e88b1fae54`)
+- Phase 4 - PASS + merged (PR #8, merge `88cbc4234f5635ea3e89f335288033315103deab`)
 
 ## Current Tasks
-- [x] Audit the existing replacement UI, risk reminder, normalized workout data, and reference implementation
-- [x] Define bounded Replacement and Risk domain responses
-- [x] Derive replacement candidates only from enabled Exercise Library records
-- [x] Validate and persist same-day, incomplete workout replacements without rewriting history
-- [x] Derive risk signals from normalized Body Feedback and workout history without fabricated medical claims
-- [x] Replace hardcoded alternative exercises and right-shoulder warning without changing the visual design
-- [x] Add unit/integration tests
+- [x] Audit remaining hardcoded weekly progress, pre-workout reminders, workout review, and future-plan placeholders
+- [x] Derive the current week and pre-workout focus from normalized workout history
+- [x] Add bounded AI workout review and future-plan proposal domains
+- [x] Keep future-plan output advisory-only; never rewrite Notion automatically
+- [x] Remove fixed dates, goals, workout facts, PR badges, and review copy from Production UI
+- [x] Add unit tests
 - [x] Run lint/test/build
-- [x] Deploy Preview and execute authenticated Staging E2E
-- [ ] Create and review Phase 4 PR
+- [ ] Deploy Preview and execute authenticated Staging E2E
+- [ ] Create and review Phase 5 PR
 - [ ] Merge to integration/full-version
 
 ## Architecture Decisions
@@ -37,6 +37,7 @@ integration/phase-3-ai-coach
 - Completed sets only contribute to volume.
 - Session duration is deduplicated by date to avoid double counting multi-exercise rows.
 - `exerciseId` remains the immutable relationship key.
+- AI workout review inputs are derived from completed sets only and future-plan output is a bounded, advisory proposal.
 - Legacy history without snapshot fields is read compatibly and not rewritten.
 - Body Feedback will use a dedicated Notion Data Source when available; until then the API returns an explicit empty state rather than mock data.
 
@@ -59,6 +60,7 @@ integration/phase-3-ai-coach
 ## Tests
 - `npm run lint` - PASS
 - `npm test` - PASS (71 tests)
+- Phase 5 `npm test` - PASS (75 tests)
 - `npm run build` - PASS locally and in Vercel Preview
 
 ## E2E Status
@@ -126,10 +128,11 @@ Phase 4 authenticated Staging E2E PASS on Vercel Preview `dpl_HA9J9u42NAtZC5JeEq
 - The first live Coach E2E response took approximately 55 seconds; observe warm and production latency before launch.
 - Authenticated visual walkthrough requires a user-authorized login session; build, adapter tests, and protected Preview API E2E are green.
 - The current Staging Exercise Library has no two permanent enabled actions with the same target-muscle value; populate reviewed alternatives before Production launch so the replacement UI is useful without synthetic fixtures.
+- AI future-plan suggestions are intentionally not persisted; the user retains control of the formal Notion plan.
 
 ## Release Blockers
 - No Phase 3 blocker remains.
 - Phase 6 must remove the application login password before the final Production launch, per product-owner direction; Preview authentication remains enabled for staging verification only.
 
 ## Next Checkpoint
-Implement the bounded Phase 4 domain and server foundation, then eliminate the replacement and risk mock dependencies.
+Deploy Phase 5 to Preview, verify normalized maintenance data and a live bounded AI review, then merge it into `integration/full-version`.

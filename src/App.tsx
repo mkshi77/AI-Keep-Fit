@@ -8,11 +8,12 @@ import {
   BodyFeedbackRecord,
   ExerciseFeedbackData,
 } from './types';
-import { completeWorkout, getTodayWorkout, getWorkoutSafety, replaceWorkoutExercise } from './services/workoutApi';
+import { completeWorkout, getTodayWorkout, getWorkoutMaintenance, getWorkoutSafety, replaceWorkoutExercise, requestWorkoutReview } from './services/workoutApi';
 import { adaptReplacementOption, adaptTodayWorkout } from './adapters/workoutAdapter';
 import type { TodayWorkout, WorkoutCompletionResult } from './domain/workout';
 import type { ReplacementOption, WorkoutSafetyResult } from './domain/replacementRisk';
-import { buildWorkoutCompletionPayload } from './adapters/workoutSubmissionAdapter';
+import { buildWorkoutCompletionPayload, buildWorkoutReviewRequest } from './adapters/workoutSubmissionAdapter';
+import type { WorkoutMaintenanceResult, WorkoutReviewResult } from './domain/maintenance';
 import {
   applyWorkoutDraft,
   createWorkoutDraft,
@@ -59,6 +60,12 @@ export default function App() {
   const [workoutError, setWorkoutError] = useState('');
   const [isWorkoutLoading, setIsWorkoutLoading] = useState(false);
   const [workoutSafety, setWorkoutSafety] = useState<WorkoutSafetyResult>();
+  const [maintenance, setMaintenance] = useState<WorkoutMaintenanceResult>();
+  const [workoutReview, setWorkoutReview] = useState<{
+    status: 'idle' | 'loading' | 'ready' | 'failed';
+    result?: WorkoutReviewResult;
+    error?: string;
+  }>({ status: 'idle' });
   // Navigation State
   const [activeTab, setActiveTab] = useState<TabType>('today');
   const [workoutScreen, setWorkoutScreen] = useState<WorkoutScreen>('overview');
@@ -95,11 +102,12 @@ export default function App() {
       setWorkoutDraft(restoredDraft);
       setWorkout(latest);
       setCurrentExerciseIndex(restoredDraft?.currentExerciseIndex ?? 0);
-      try {
-        setWorkoutSafety(await getWorkoutSafety());
-      } catch {
-        setWorkoutSafety(undefined);
-      }
+      const [safetyResult, maintenanceResult] = await Promise.allSettled([
+        getWorkoutSafety(),
+        getWorkoutMaintenance(),
+      ]);
+      setWorkoutSafety(safetyResult.status === 'fulfilled' ? safetyResult.value : undefined);
+      setMaintenance(maintenanceResult.status === 'fulfilled' ? maintenanceResult.value : undefined);
     } catch (cause) {
       setWorkoutError(cause instanceof Error ? cause.message : '无法加载今日训练');
       setPlannedExercises([]);
@@ -332,6 +340,14 @@ export default function App() {
       const result = await completeWorkout(payload);
       setSubmission({ status: 'submitted', result });
       setWorkoutDraft(setWorkoutDraftSubmissionStatus(preparedDraft, 'submitted', { submittedAt: Date.now() }));
+      const reviewInput = buildWorkoutReviewRequest(payload);
+      setWorkoutReview({ status: 'loading' });
+      void requestWorkoutReview(reviewInput)
+        .then((review) => setWorkoutReview({ status: 'ready', result: review }))
+        .catch((error) => setWorkoutReview({
+          status: 'failed',
+          error: error instanceof Error ? error.message : 'AI 训练复盘暂时不可用',
+        }));
 
       try {
         const latest = await getTodayWorkout();
@@ -341,6 +357,7 @@ export default function App() {
         clearWorkoutDraft(localStorage);
         setWorkoutDraft(null);
         setIsTodayCompleted(result.workoutCompleted);
+        try { setMaintenance(await getWorkoutMaintenance()); } catch { setMaintenance(undefined); }
       } catch (syncCause) {
         const message = syncCause instanceof Error ? syncCause.message : '提交成功，但正式训练数据重新同步失败；草稿已保留';
         setWorkoutError(message);
@@ -369,6 +386,7 @@ export default function App() {
     if (!workout || !plannedExercises.length) return;
     setWorkoutDraft(createWorkoutDraft(workout, plannedExercises, Date.now(), true));
     setSubmission({ status: 'idle' });
+    setWorkoutReview({ status: 'idle' });
     setCurrentExerciseIndex(0);
     setIsTodayCompleted(false);
   };
@@ -516,6 +534,7 @@ export default function App() {
                 error={workoutError}
                 onRetry={loadWorkout}
                 safety={workoutSafety}
+                maintenance={maintenance}
                 replacementOptions={replacementOptions}
                 onStartWorkout={handleStartWorkout}
                 isTodayCompleted={isTodayCompleted}
@@ -574,6 +593,7 @@ export default function App() {
                 exercises={exercises}
                 summary={workoutSummary}
                 submissionState={submission}
+                reviewState={workoutReview}
                 onSubmitWorkout={handleSubmitWorkout}
                 onReturnToday={handleReturnToday}
                 onAskCoach={() => setActiveTab('coach')}
