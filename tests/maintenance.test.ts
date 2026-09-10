@@ -7,6 +7,7 @@ import type { WorkoutCompletionPayload } from '../src/domain/workout';
 const session = (date: string, completedSets: number, plannedSets: number): WorkoutHistorySession => ({
   date,
   trainingDay: 'A',
+  durationMinutes: 0,
   completedSets,
   plannedSets,
   totalVolume: completedSets * 500,

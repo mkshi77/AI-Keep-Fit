@@ -24,7 +24,7 @@ export interface WorkoutHistoryExercise {
 export interface WorkoutHistorySession {
   date: string;
   trainingDay?: TrainingDay | null;
-  durationMinutes?: number;
+  durationMinutes: number;
   completedSets: number;
   plannedSets: number;
   totalVolume: number;

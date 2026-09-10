@@ -58,7 +58,10 @@ const dateRangeFilter = (schema: NotionDataSource['properties'], period: History
   const propertyName = findSchemaProperty(schema, PROPERTY.date);
   if (!propertyName || schema[propertyName].type !== 'date') return undefined;
   const cutoff = historyCutoffDate(period);
-  return cutoff ? { property: propertyName, date: { on_or_after: cutoff } } : undefined;
+  return {
+    property: propertyName,
+    date: { ...(cutoff ? { on_or_after: cutoff } : {}), on_or_before: today() },
+  };
 };
 
 const completedSets = (properties: NotionPage['properties']) => Array.from({ length: 4 }, (_, index) => {
@@ -140,7 +143,7 @@ export const aggregateWorkoutHistory = (pages: NotionPage[]): WorkoutHistorySess
     return {
       date,
       trainingDay: entry.trainingDay ?? null,
-      durationMinutes: entry.durationMinutes,
+      durationMinutes: entry.durationMinutes ?? 0,
       completedSets,
       plannedSets,
       totalVolume,
@@ -195,7 +198,8 @@ export const getWorkoutHistory = async (periodInput: string | undefined): Promis
     ...(filters.length === 1 ? { filter: filters[0] } : filters.length ? { filter: { and: filters } } : {}),
     ...(sorts.length ? { sorts } : {}),
   }, HISTORY_LIMIT);
-  return aggregateWorkoutHistory(pages).slice(0, HISTORY_LIMIT);
+  const currentDate = today();
+  return aggregateWorkoutHistory(pages).filter((session) => session.date <= currentDate).slice(0, HISTORY_LIMIT);
 };
 
 export const getWorkoutHistoryOverview = async (): Promise<WorkoutHistorySession[]> => getWorkoutHistory('7d');
