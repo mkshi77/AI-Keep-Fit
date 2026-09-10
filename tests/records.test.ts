@@ -44,6 +44,13 @@ describe('Phase 2A history foundation', () => {
     expect(sessions[0].exercises.map((exercise) => exercise.exerciseId)).toEqual(['bench-press', 'row']);
   });
 
+  it('uses zero when legacy sessions have no duration', () => {
+    const sessions = aggregateWorkoutHistory([executionPage('execution-1', {
+      '训练时长分钟': undefined,
+    })]);
+    expect(sessions[0].durationMinutes).toBe(0);
+  });
+
   it('classifies skipped and completed exercises', () => {
     const skipped = mapWorkoutHistoryPage(executionPage('execution-1', {
       '第1组重量kg': undefined, '第1组次数': undefined, '第2组重量kg': undefined, '第2组次数': undefined,
@@ -96,5 +103,30 @@ describe('Phase 2A history foundation', () => {
     expect(pages).toHaveLength(101);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     vi.unstubAllGlobals();
+  });
+
+  it('excludes future workout plans from history', async () => {
+    vi.stubEnv('NOTION_TOKEN', 'token');
+    vi.stubEnv('NOTION_TRAINING_DATA_SOURCE_ID', 'training');
+    vi.stubEnv('APP_TIME_ZONE', 'Asia/Shanghai');
+    vi.setSystemTime(new Date('2026-09-10T04:00:00Z'));
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ properties: { Date: { type: 'date' } } }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        results: [
+          executionPage('past', { Date: date('2026-09-09') }),
+          executionPage('future', { Date: date('2026-09-11') }),
+        ],
+      }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const sessions = await getWorkoutHistory('7d');
+    const queryBody = JSON.parse(String(fetchMock.mock.calls[1][1]?.body));
+
+    expect(queryBody.filter.date).toMatchObject({ on_or_after: '2026-09-03', on_or_before: '2026-09-10' });
+    expect(sessions.map((session) => session.date)).toEqual(['2026-09-09']);
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
   });
 });
