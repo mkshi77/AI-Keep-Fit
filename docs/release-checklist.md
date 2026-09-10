@@ -7,7 +7,7 @@
 - [x] Phase 3 - AI Coach
 - [x] Phase 4 - Replacement + Risk Engine
 - [x] Phase 5 - AI Maintenance + Future Plan
-- [ ] Phase 6 - Release Hardening
+- [x] Phase 6 - Release Hardening
 
 ## Engineering Gates
 - [x] npm run lint PASS
@@ -22,9 +22,9 @@
 - [x] Preview / Production data isolation
 
 ## Final Release
-- [ ] Full integration diff reviewed
-- [ ] Production app login password removed before launch
-- [ ] Production Notion schema confirmed
-- [ ] Production environment mapping confirmed
-- [ ] Production read-only smoke test PASS
+- [x] Full integration diff reviewed
+- [x] Production app login password removed before launch
+- [x] Production Notion schema confirmed
+- [x] Production environment mapping confirmed
+- [x] Production read-only smoke test PASS
 - [x] Rollback plan documented
