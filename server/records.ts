@@ -199,7 +199,10 @@ export const getWorkoutHistory = async (periodInput: string | undefined): Promis
     ...(sorts.length ? { sorts } : {}),
   }, HISTORY_LIMIT);
   const currentDate = today();
-  return aggregateWorkoutHistory(pages).filter((session) => session.date <= currentDate).slice(0, HISTORY_LIMIT);
+  const cutoff = historyCutoffDate(period, currentDate);
+  return aggregateWorkoutHistory(pages)
+    .filter((session) => session.date <= currentDate && (!cutoff || session.date >= cutoff))
+    .slice(0, HISTORY_LIMIT);
 };
 
 export const getWorkoutHistoryOverview = async (): Promise<WorkoutHistorySession[]> => getWorkoutHistory('7d');

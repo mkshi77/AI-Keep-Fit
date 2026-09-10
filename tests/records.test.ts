@@ -114,6 +114,7 @@ describe('Phase 2A history foundation', () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ properties: { Date: { type: 'date' } } }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
         results: [
+          executionPage('old', { Date: date('2026-09-02') }),
           executionPage('past', { Date: date('2026-09-09') }),
           executionPage('future', { Date: date('2026-09-11') }),
         ],
