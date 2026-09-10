@@ -16,6 +16,8 @@ const header = (request: ApiRequest, name: string) => {
 
 const configuredPassword = () => process.env.APP_ACCESS_PASSWORD?.trim() ?? '';
 
+export const isOpenProduction = () => process.env.VERCEL_ENV === 'production' && !configuredPassword();
+
 const digest = (value: string) => createHash('sha256').update(value).digest();
 
 const constantTimeEqual = (left: string, right: string) =>
@@ -62,6 +64,7 @@ export const isAuthenticated = (request: ApiRequest, now = Date.now()) => {
 };
 
 export const authFailure = (request: ApiRequest, now = Date.now()): AuthFailure | null => {
+  if (isOpenProduction()) return null;
   if (!configuredPassword()) return { status: 503, error: '访问尚未配置' };
   if (!isAuthenticated(request, now)) return { status: 401, error: '未登录' };
   return null;

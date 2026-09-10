@@ -1,5 +1,12 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { BodyFeedbackRecord } from '../types';
+import { buildBodyWeightDataset, buildHeatmap, buildPrRecords, buildTrends, buildWeeklyData, isoWeekLabel, mapRemoteBodyFeedback, overviewSummary, summarizeSessions, type RecordsPeriodLabel, type RecordsTrend } from '../adapters/recordsAdapter';
+import { useRecordsData } from '../hooks/useRecordsData';
+import { useBodyWeightData } from '../hooks/useBodyWeightData';
+import type { BodyWeightCondition, HistoryPeriod, WorkoutHistorySession } from '../domain/records';
+
+const EMPTY_HISTORY: WorkoutHistorySession[] = [];
+type BodyWeightPeriod = Exclude<HistoryPeriod, 'all'>;
 
 interface RecordsViewProps {
   bodyFeedbacks: BodyFeedbackRecord[];
@@ -7,96 +14,40 @@ interface RecordsViewProps {
 }
 
 export const RecordsView: React.FC<RecordsViewProps> = ({ bodyFeedbacks, onOpenCoachWithFeedback }) => {
-  const [selectedPeriod, setSelectedPeriod] = useState<'本周' | '本月' | '3个月' | '全部'>('本周');
-  const [activeTooltipDay, setActiveTooltipDay] = useState<number>(4); // Friday (index 4)
+  const [selectedPeriod, setSelectedPeriod] = useState<RecordsPeriodLabel>('本周');
+  const [activeTooltipDay, setActiveTooltipDay] = useState<number>(6);
   const [selectedPRDetail, setSelectedPRDetail] = useState<any | null>(null);
   const [showAllPRs, setShowAllPRs] = useState(false);
-  const [selectedTrendExercise, setSelectedTrendExercise] = useState<string>('bench');
+  const [selectedTrendExercise, setSelectedTrendExercise] = useState<string>('');
   const [showExercisePickerModal, setShowExercisePickerModal] = useState(false);
 
-  // Weight Logging state & persistence
-  const [currentWeight, setCurrentWeight] = useState<number>(() => {
-    const saved = localStorage.getItem('keepfit_weight');
-    return saved ? parseFloat(saved) : 74.2;
-  });
+  // Weight Logging state backed by the dedicated Body Weight data source
   const [showWeightModal, setShowWeightModal] = useState(false);
-  const [inputWeight, setInputWeight] = useState<string>(currentWeight.toFixed(1));
-  const [weightCondition, setWeightCondition] = useState<'晨起空腹' | '练后即刻' | '晚间称重'>('晨起空腹');
-  const [weightPeriod, setWeightPeriod] = useState<'7d' | '30d' | '90d' | '180d'>('30d');
+  const [inputWeight, setInputWeight] = useState('');
+  const [weightCondition, setWeightCondition] = useState<BodyWeightCondition>('晨起空腹');
+  const [weightPeriod, setWeightPeriod] = useState<BodyWeightPeriod>('30d');
+  const bodyWeight = useBodyWeightData(weightPeriod);
+  const activeWeightDataset = useMemo(
+    () => buildBodyWeightDataset(bodyWeight.records, weightPeriod),
+    [bodyWeight.records, weightPeriod],
+  );
+  const latestWeight = bodyWeight.records.at(-1);
+  const currentWeight = latestWeight?.weightKg;
 
-  // Multi-period historical logs that automatically link with current logged weight
-  const weightPeriodData: Record<'7d' | '30d' | '90d' | '180d', {
-    label: string;
-    points: { date: string; weight: number }[];
-    yMin: number;
-    yMax: number;
-    baseline: number;
-  }> = {
-    '7d': {
-      label: '近 7 天',
-      points: [
-        { date: '09/01', weight: 74.4 },
-        { date: '09/02', weight: 74.3 },
-        { date: '09/04', weight: 74.3 },
-        { date: '09/06', weight: 74.1 },
-        { date: '09/07', weight: currentWeight },
-      ],
-      yMin: 73.8,
-      yMax: 74.8,
-      baseline: 74.4,
-    },
-    '30d': {
-      label: '近 30 天',
-      points: [
-        { date: '08/08', weight: 75.0 },
-        { date: '08/18', weight: 74.8 },
-        { date: '08/28', weight: 74.5 },
-        { date: '09/04', weight: 74.3 },
-        { date: '09/07', weight: currentWeight },
-      ],
-      yMin: 73.8,
-      yMax: 75.4,
-      baseline: 75.0,
-    },
-    '90d': {
-      label: '近 90 天',
-      points: [
-        { date: '06/15', weight: 76.5 },
-        { date: '07/05', weight: 75.8 },
-        { date: '07/25', weight: 75.2 },
-        { date: '08/15', weight: 74.9 },
-        { date: '09/07', weight: currentWeight },
-      ],
-      yMin: 73.5,
-      yMax: 77.0,
-      baseline: 76.5,
-    },
-    '180d': {
-      label: '近半年',
-      points: [
-        { date: '03/10', weight: 78.2 },
-        { date: '04/20', weight: 77.0 },
-        { date: '06/01', weight: 76.1 },
-        { date: '07/15', weight: 75.2 },
-        { date: '09/07', weight: currentWeight },
-      ],
-      yMin: 73.5,
-      yMax: 78.8,
-      baseline: 78.2,
-    },
-  };
-
-  const activeWeightDataset = weightPeriodData[weightPeriod];
-
-  const handleSaveWeight = () => {
-    const parsed = parseFloat(inputWeight);
-    if (!isNaN(parsed) && parsed > 30 && parsed < 250) {
-      setCurrentWeight(parsed);
-      localStorage.setItem('keepfit_weight', parsed.toString());
+  const handleSaveWeight = async () => {
+    const parsed = Number.parseFloat(inputWeight);
+    if (!Number.isFinite(parsed) || parsed <= 30 || parsed >= 250) return;
+    try {
+      await bodyWeight.save({
+        date: new Intl.DateTimeFormat('en-CA').format(new Date()),
+        weightKg: parsed,
+        condition: weightCondition,
+      });
       setShowWeightModal(false);
+    } catch {
+      // The hook exposes the request error inside the modal.
     }
   };
-
   const heatmapScrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (heatmapScrollRef.current) {
@@ -128,400 +79,36 @@ export const RecordsView: React.FC<RecordsViewProps> = ({ bodyFeedbacks, onOpenC
     return { lineD, areaD, coords, minW, maxW };
   };
 
-  const allPRRecords = [
-    {
-      id: 'pr-1',
-      exercise: '史密斯平板卧推',
-      muscle: '胸部',
-      metricType: '重量PR',
-      value: '45.0',
-      unit: 'kg',
-      change: '+2.5kg',
-      date: '09/07',
-      isRecentHighlight: true,
-      reps: '8次力竭',
-      estimated1RM: '55.8 kg',
-      previousBest: '42.5 kg',
-      note: '胸大肌发力充分，落点稳定未出现晃动',
-      history: [
-        { date: '08/10', weight: '37.5kg' },
-        { date: '08/24', weight: '40.0kg' },
-        { date: '08/31', weight: '42.5kg' },
-        { date: '09/07', weight: '45.0kg' },
-      ],
-    },
-    {
-      id: 'pr-2',
-      exercise: '坐姿绳索划船',
-      muscle: '背部',
-      metricType: '容量PR',
-      value: '5,400',
-      unit: 'kg',
-      change: '容量突破',
-      date: '09/07',
-      isRecentHighlight: true,
-      reps: '4组×12次',
-      estimated1RM: '62.0 kg',
-      previousBest: '4,800 kg',
-      note: '顶峰收缩停顿 1 秒，背阔肌充血明显',
-      history: [
-        { date: '08/15', weight: '45kg × 10' },
-        { date: '08/28', weight: '45kg × 12' },
-        { date: '09/07', weight: '50kg × 12' },
-      ],
-    },
-    {
-      id: 'pr-3',
-      exercise: '45°倒蹬机腿举',
-      muscle: '腿部',
-      metricType: '重量PR',
-      value: '160.0',
-      unit: 'kg',
-      change: '+10.0kg',
-      date: '09/03',
-      isRecentHighlight: false,
-      reps: '10次标准',
-      estimated1RM: '200.0 kg',
-      previousBest: '150.0 kg',
-      note: '下放至膝关节90度，脚跟扎实推起',
-      history: [
-        { date: '08/06', weight: '130kg' },
-        { date: '08/20', weight: '150kg' },
-        { date: '09/03', weight: '160kg' },
-      ],
-    },
-    {
-      id: 'pr-4',
-      exercise: '哑铃坐姿推肩',
-      muscle: '肩部',
-      metricType: '次数PR',
-      value: '18.0',
-      unit: 'kg/单手',
-      change: '10次达标',
-      date: '08/29',
-      isRecentHighlight: false,
-      reps: '单组10次',
-      estimated1RM: '23.5 kg',
-      previousBest: '18.0kg × 7次',
-      note: '核心收紧无反弓，三角肌前中束泵感极强',
-      history: [
-        { date: '08/12', weight: '16kg × 10' },
-        { date: '08/22', weight: '18kg × 7' },
-        { date: '08/29', weight: '18kg × 10' },
-      ],
-    },
-    {
-      id: 'pr-5',
-      exercise: '高位下拉',
-      muscle: '背部',
-      metricType: '重量PR',
-      value: '55.0',
-      unit: 'kg',
-      change: '+2.5kg',
-      date: '08/25',
-      isRecentHighlight: false,
-      reps: '8次慢离心',
-      estimated1RM: '68.0 kg',
-      previousBest: '52.5 kg',
-      note: '慢速下放3秒离心控制，大圆肌与背阔肌彻底力竭',
-      history: [
-        { date: '08/04', weight: '47.5kg' },
-        { date: '08/18', weight: '52.5kg' },
-        { date: '08/25', weight: '55.0kg' },
-      ],
-    },
-    {
-      id: 'pr-6',
-      exercise: '罗马尼亚硬拉',
-      muscle: '腿部',
-      metricType: '重量PR',
-      value: '80.0',
-      unit: 'kg',
-      change: '+5.0kg',
-      date: '08/18',
-      isRecentHighlight: false,
-      reps: '8次髋绞链',
-      estimated1RM: '99.0 kg',
-      previousBest: '75.0 kg',
-      note: '腘绳肌充分拉伸，腰椎保持自然生理曲度',
-      history: [
-        { date: '07/28', weight: '70kg' },
-        { date: '08/08', weight: '75kg' },
-        { date: '08/18', weight: '80kg' },
-      ],
-    },
-  ];
+  const recordsData = useRecordsData(selectedPeriod);
+  const historySessions = recordsData.history?.sessions ?? EMPTY_HISTORY;
+  const allHistorySessions = recordsData.allHistory?.sessions ?? EMPTY_HISTORY;
+  const weeklyData = useMemo(() => buildWeeklyData(recordsData.overview?.sessions ?? []), [recordsData.overview]);
+  const heatmap = useMemo(() => buildHeatmap(allHistorySessions), [allHistorySessions]);
+  const allPRRecords = useMemo(() => buildPrRecords(historySessions), [historySessions]);
+  const overloadTrends = useMemo(() => buildTrends(historySessions), [historySessions]);
+  const trendEntries = useMemo(() => Object.entries(overloadTrends) as Array<[string, RecordsTrend]>, [overloadTrends]);
+  const primaryTrendEntries = trendEntries.slice(0, 3);
+  const primaryTrendKeys = primaryTrendEntries.map(([key]) => key);
+  const trendCategories = [...new Set(trendEntries.map(([, trend]) => trend.category))];
+  const activeTrend = overloadTrends[selectedTrendExercise] || trendEntries[0]?.[1];
+  const selectedSummary = selectedPeriod === '本周'
+    ? overviewSummary(recordsData.overview)
+    : summarizeSessions(historySessions);
+  const selectedDateRange = historySessions.length
+    ? `${historySessions[0].date} - ${historySessions[historySessions.length - 1].date}`
+    : '暂无训练记录';
+  const remoteBodyFeedbacks = useMemo(
+    () => mapRemoteBodyFeedback(recordsData.bodyFeedback?.records ?? []),
+    [recordsData.bodyFeedback],
+  );
+  const displayBodyFeedbacks = useMemo(() => {
+    const remoteIds = new Set(remoteBodyFeedbacks.map((record) => record.id));
+    return [...remoteBodyFeedbacks, ...bodyFeedbacks.filter((record) => !remoteIds.has(record.id))];
+  }, [bodyFeedbacks, remoteBodyFeedbacks]);
 
-  // Progression trend datasets for interactive switching (Categorized by muscle groups)
-  const overloadTrends: Record<string, {
-    name: string;
-    category: '胸部' | '背部' | '腿部' | '肩部' | '手臂';
-    target: string;
-    points: { date: string; weight: number; isPR?: boolean }[];
-    pointsSvg: string;
-    areaSvg: string;
-    coords: { cx: number; cy: number; isPR?: boolean }[];
-    summary: string;
-    est1RM: string;
-    gain: string;
-    baseline: string;
-  }> = {
-    bench: {
-      name: '史密斯平板卧推',
-      category: '胸部',
-      target: '胸大肌中下束',
-      summary: '40 → 40 → 42.5 → 42.5 → 45 kg',
-      est1RM: '55.8 kg',
-      gain: '+12.5%',
-      baseline: '40.0 kg',
-      points: [
-        { date: '08/18', weight: 40 },
-        { date: '08/23', weight: 40 },
-        { date: '08/28', weight: 42.5 },
-        { date: '09/02', weight: 42.5 },
-        { date: '09/07', weight: 45, isPR: true },
-      ],
-      pointsSvg: 'M 20 40 L 85 40 L 150 26 L 215 26 L 280 8',
-      areaSvg: 'M 20 40 L 85 40 L 150 26 L 215 26 L 280 8 L 280 48 L 20 48 Z',
-      coords: [
-        { cx: 20, cy: 40 },
-        { cx: 85, cy: 40 },
-        { cx: 150, cy: 26 },
-        { cx: 215, cy: 26 },
-        { cx: 280, cy: 8, isPR: true },
-      ],
-    },
-    incline_db: {
-      name: '哑铃上斜卧推',
-      category: '胸部',
-      target: '胸大肌锁骨头(上胸)',
-      summary: '18 → 20 → 20 → 22 → 22 kg',
-      est1RM: '28.5 kg',
-      gain: '+22.2%',
-      baseline: '18.0 kg',
-      points: [
-        { date: '08/12', weight: 18 },
-        { date: '08/19', weight: 20 },
-        { date: '08/26', weight: 20 },
-        { date: '09/01', weight: 22 },
-        { date: '09/06', weight: 22, isPR: true },
-      ],
-      pointsSvg: 'M 20 42 L 85 32 L 150 32 L 215 16 L 280 16',
-      areaSvg: 'M 20 42 L 85 32 L 150 32 L 215 16 L 280 16 L 280 48 L 20 48 Z',
-      coords: [
-        { cx: 20, cy: 42 },
-        { cx: 85, cy: 32 },
-        { cx: 150, cy: 32 },
-        { cx: 215, cy: 16 },
-        { cx: 280, cy: 16, isPR: true },
-      ],
-    },
-    row: {
-      name: '坐姿绳索划船',
-      category: '背部',
-      target: '背阔肌 / 大圆肌',
-      summary: '42.5 → 45 → 45 → 47.5 → 50 kg',
-      est1RM: '62.0 kg',
-      gain: '+17.6%',
-      baseline: '42.5 kg',
-      points: [
-        { date: '08/15', weight: 42.5 },
-        { date: '08/22', weight: 45 },
-        { date: '08/27', weight: 45 },
-        { date: '09/01', weight: 47.5 },
-        { date: '09/07', weight: 50, isPR: true },
-      ],
-      pointsSvg: 'M 20 42 L 85 34 L 150 34 L 215 22 L 280 8',
-      areaSvg: 'M 20 42 L 85 34 L 150 34 L 215 22 L 280 8 L 280 48 L 20 48 Z',
-      coords: [
-        { cx: 20, cy: 42 },
-        { cx: 85, cy: 34 },
-        { cx: 150, cy: 34 },
-        { cx: 215, cy: 22 },
-        { cx: 280, cy: 8, isPR: true },
-      ],
-    },
-    latpull: {
-      name: '高位下拉',
-      category: '背部',
-      target: '背阔肌上外侧',
-      summary: '47.5 → 50 → 50 → 52.5 → 55 kg',
-      est1RM: '68.0 kg',
-      gain: '+15.8%',
-      baseline: '47.5 kg',
-      points: [
-        { date: '08/04', weight: 47.5 },
-        { date: '08/11', weight: 50 },
-        { date: '08/18', weight: 50 },
-        { date: '08/21', weight: 52.5 },
-        { date: '08/25', weight: 55, isPR: true },
-      ],
-      pointsSvg: 'M 20 42 L 85 32 L 150 32 L 215 20 L 280 8',
-      areaSvg: 'M 20 42 L 85 32 L 150 32 L 215 20 L 280 8 L 280 48 L 20 48 Z',
-      coords: [
-        { cx: 20, cy: 42 },
-        { cx: 85, cy: 32 },
-        { cx: 150, cy: 32 },
-        { cx: 215, cy: 20 },
-        { cx: 280, cy: 8, isPR: true },
-      ],
-    },
-    legpress: {
-      name: '45°倒蹬机腿举',
-      category: '腿部',
-      target: '股四头肌 / 臀大肌',
-      summary: '130 → 140 → 140 → 150 → 160 kg',
-      est1RM: '200.0 kg',
-      gain: '+23.1%',
-      baseline: '130.0 kg',
-      points: [
-        { date: '08/06', weight: 130 },
-        { date: '08/13', weight: 140 },
-        { date: '08/20', weight: 140 },
-        { date: '08/27', weight: 150 },
-        { date: '09/03', weight: 160, isPR: true },
-      ],
-      pointsSvg: 'M 20 44 L 85 32 L 150 32 L 215 20 L 280 8',
-      areaSvg: 'M 20 44 L 85 32 L 150 32 L 215 20 L 280 8 L 280 48 L 20 48 Z',
-      coords: [
-        { cx: 20, cy: 44 },
-        { cx: 85, cy: 32 },
-        { cx: 150, cy: 32 },
-        { cx: 215, cy: 20 },
-        { cx: 280, cy: 8, isPR: true },
-      ],
-    },
-    rdl: {
-      name: '罗马尼亚硬拉',
-      category: '腿部',
-      target: '腘绳肌 / 臀大肌 / 竖脊肌',
-      summary: '70 → 70 → 75 → 75 → 80 kg',
-      est1RM: '99.0 kg',
-      gain: '+14.3%',
-      baseline: '70.0 kg',
-      points: [
-        { date: '07/28', weight: 70 },
-        { date: '08/08', weight: 70 },
-        { date: '08/14', weight: 75 },
-        { date: '08/18', weight: 75 },
-        { date: '08/25', weight: 80, isPR: true },
-      ],
-      pointsSvg: 'M 20 44 L 85 44 L 150 30 L 215 30 L 280 12',
-      areaSvg: 'M 20 44 L 85 44 L 150 30 L 215 30 L 280 12 L 280 48 L 20 48 Z',
-      coords: [
-        { cx: 20, cy: 44 },
-        { cx: 85, cy: 44 },
-        { cx: 150, cy: 30 },
-        { cx: 215, cy: 30 },
-        { cx: 280, cy: 12, isPR: true },
-      ],
-    },
-    shoulder_press: {
-      name: '哑铃推肩',
-      category: '肩部',
-      target: '三角肌前中束',
-      summary: '14 → 16 → 16 → 18 → 18 kg',
-      est1RM: '23.5 kg',
-      gain: '+28.6%',
-      baseline: '14.0 kg',
-      points: [
-        { date: '08/07', weight: 14 },
-        { date: '08/14', weight: 16 },
-        { date: '08/21', weight: 16 },
-        { date: '08/28', weight: 18 },
-        { date: '09/04', weight: 18, isPR: true },
-      ],
-      pointsSvg: 'M 20 44 L 85 30 L 150 30 L 215 14 L 280 14',
-      areaSvg: 'M 20 44 L 85 30 L 150 30 L 215 14 L 280 14 L 280 48 L 20 48 Z',
-      coords: [
-        { cx: 20, cy: 44 },
-        { cx: 85, cy: 30 },
-        { cx: 150, cy: 30 },
-        { cx: 215, cy: 14 },
-        { cx: 280, cy: 14, isPR: true },
-      ],
-    },
-    triceps_push: {
-      name: '绳索三头下压',
-      category: '手臂',
-      target: '肱三头肌外侧与长头',
-      summary: '20 → 22.5 → 25 → 25 → 27.5 kg',
-      est1RM: '34.0 kg',
-      gain: '+37.5%',
-      baseline: '20.0 kg',
-      points: [
-        { date: '08/10', weight: 20 },
-        { date: '08/17', weight: 22.5 },
-        { date: '08/24', weight: 25 },
-        { date: '08/30', weight: 25 },
-        { date: '09/05', weight: 27.5, isPR: true },
-      ],
-      pointsSvg: 'M 20 44 L 85 34 L 150 24 L 215 24 L 280 10',
-      areaSvg: 'M 20 44 L 85 34 L 150 24 L 215 24 L 280 10 L 280 48 L 20 48 Z',
-      coords: [
-        { cx: 20, cy: 44 },
-        { cx: 85, cy: 34 },
-        { cx: 150, cy: 24 },
-        { cx: 215, cy: 24 },
-        { cx: 280, cy: 10, isPR: true },
-      ],
-    },
-  };
-
-  const activeTrend = overloadTrends[selectedTrendExercise] || overloadTrends.bench;
-
-  const weeklyData = [
-    {
-      day: '一',
-      date: '09/02',
-      routineName: '上肢推拉混合',
-      sets: 12,
-      tonnage: 4800,
-      completion: '100%',
-      height: 48,
-      active: true,
-      exercises: [
-        { name: '史密斯平板卧推', sets: '4 组', max: '42.5 kg', vol: '1,700 kg' },
-        { name: '坐姿绳索划船', sets: '4 组', max: '47.5 kg', vol: '1,900 kg' },
-        { name: '哑铃侧平举', sets: '4 组', max: '10.0 kg', vol: '1,200 kg' },
-      ],
-    },
-    { day: '二', date: '09/03', routineName: '主动休整', sets: 0, tonnage: 0, completion: '0%', height: 0, active: false, exercises: [] },
-    {
-      day: '三',
-      date: '09/04',
-      routineName: '下肢主干力量',
-      sets: 12,
-      tonnage: 4500,
-      completion: '100%',
-      height: 38,
-      active: true,
-      exercises: [
-        { name: '45°倒蹬机腿举', sets: '4 组', max: '150.0 kg', vol: '2,400 kg' },
-        { name: '罗马尼亚硬拉', sets: '4 组', max: '75.0 kg', vol: '1,500 kg' },
-        { name: '坐姿提踵', sets: '4 组', max: '40.0 kg', vol: '600 kg' },
-      ],
-    },
-    { day: '四', date: '09/05', routineName: '筋膜放松', sets: 0, tonnage: 0, completion: '0%', height: 0, active: false, exercises: [] },
-    {
-      day: '五',
-      date: '09/06',
-      routineName: '胸背突破日 (PR)',
-      sets: 12,
-      tonnage: 5200,
-      completion: '100%',
-      height: 56,
-      active: true,
-      isPR: true,
-      exercises: [
-        { name: '史密斯平板卧推', sets: '4 组', max: '45.0 kg (PR)', vol: '1,800 kg', isPR: true },
-        { name: '坐姿绳索划船', sets: '4 组', max: '50.0 kg (PR)', vol: '2,000 kg', isPR: true },
-        { name: '高位下拉', sets: '4 组', max: '52.5 kg', vol: '1,400 kg' },
-      ],
-    },
-    { day: '六', date: '09/07', routineName: '休息', sets: 0, tonnage: 0, completion: '0%', height: 0, active: false, exercises: [] },
-    { day: '日', date: '09/08', routineName: '休息', sets: 0, tonnage: 0, completion: '0%', height: 0, active: false, exercises: [] },
-  ];
+  useEffect(() => {
+    if (!overloadTrends[selectedTrendExercise] && trendEntries[0]) setSelectedTrendExercise(trendEntries[0][0]);
+  }, [overloadTrends, selectedTrendExercise, trendEntries]);
 
   return (
     <main className="flex-1 overflow-y-auto px-4 pb-24 pt-1 space-y-3.5 no-scrollbar select-none">
@@ -529,6 +116,17 @@ export const RecordsView: React.FC<RecordsViewProps> = ({ bodyFeedbacks, onOpenC
       <section className="pt-1 pb-1">
         <h1 className="text-2xl font-bold tracking-tight text-white">记录</h1>
       </section>
+
+      {recordsData.error && (
+        <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+          训练记录加载失败：{recordsData.error}
+        </div>
+      )}
+      {recordsData.loading && !recordsData.history && (
+        <div className="rounded-xl border border-white/5 bg-[#141416] px-3 py-2 text-xs text-neutral-400">
+          正在加载训练记录…
+        </div>
+      )}
 
       {/* Segment Control & Date Range */}
       <section className="space-y-2">
@@ -552,14 +150,11 @@ export const RecordsView: React.FC<RecordsViewProps> = ({ bodyFeedbacks, onOpenC
         {/* Left-aligned Date Range with Year */}
         <div className="flex items-center justify-between px-1 text-xs text-neutral-400 select-none font-medium">
           <span className="tracking-tight text-neutral-300">
-            {selectedPeriod === '本周' && '2026年 9月2日 - 9月8日'}
-            {selectedPeriod === '本月' && '2026年 9月 (全月)'}
-            {selectedPeriod === '3个月' && '2026年 7月 - 9月 (近90天)'}
-            {selectedPeriod === '全部' && '2026年 完整历史'}
+            {selectedDateRange}
           </span>
           {selectedPeriod === '本周' && (
             <span className="text-[10px] font-mono text-neutral-500 bg-white/5 px-1.5 py-0.5 rounded">
-              W36
+              {isoWeekLabel(historySessions.at(-1)?.date)}
             </span>
           )}
         </div>
@@ -574,7 +169,7 @@ export const RecordsView: React.FC<RecordsViewProps> = ({ bodyFeedbacks, onOpenC
               <div className="flex items-center gap-1.5">
                 <span className="text-xs font-bold text-white tracking-tight">近期突破高光</span>
                 <span className="text-[10px] font-mono text-[#A4FF4F] bg-[#A4FF4F]/20 px-1.5 py-0.2 rounded font-bold">
-                  2 项 PR
+                  {allPRRecords.filter((record) => record.isRecentHighlight).length} 项 PR
                 </span>
               </div>
               <span className="text-[10px] text-neutral-400 block mt-0.5">
@@ -621,6 +216,9 @@ export const RecordsView: React.FC<RecordsViewProps> = ({ bodyFeedbacks, onOpenC
               </span>
             </div>
           ))}
+          {!allPRRecords.length && !recordsData.loading && (
+            <span className="col-span-2 py-2 text-center text-[11px] text-neutral-500">当前周期暂无突破记录</span>
+          )}
         </div>
 
         {/* Collapsible Full PR Records Drawer */}
@@ -661,10 +259,9 @@ export const RecordsView: React.FC<RecordsViewProps> = ({ bodyFeedbacks, onOpenC
       <section className="bg-[#141416] rounded-2xl p-4 border border-[#222226]" data-purpose="weekly-stats-card">
         {/* Top Metric */}
         <div className="space-y-1">
-          <span className="text-xs text-neutral-400">本周训练</span>
+          <span className="text-xs text-neutral-400">{selectedPeriod}训练</span>
           <div className="flex items-baseline">
-            <span className="text-3xl font-extrabold tracking-tight text-white inline-block">3 次</span>
-            <span className="text-xs text-[#A4FF4F] font-semibold ml-2 inline-block">比上周 +1</span>
+            <span className="text-3xl font-extrabold tracking-tight text-white inline-block">{selectedSummary.sessions} 次</span>
           </div>
         </div>
 
@@ -672,21 +269,21 @@ export const RecordsView: React.FC<RecordsViewProps> = ({ bodyFeedbacks, onOpenC
         <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-[#262629]">
           <div>
             <div className="flex items-baseline space-x-0.5">
-              <span className="text-base font-bold text-white">36</span>
+              <span className="text-base font-bold text-white">{selectedSummary.completedSets}</span>
               <span className="text-[11px] text-[#8E8E93]">组</span>
             </div>
             <span className="text-[11px] text-[#707077] block mt-0.5">完成组数</span>
           </div>
           <div>
             <div className="flex items-baseline space-x-0.5">
-              <span className="text-base font-bold text-white">135</span>
+              <span className="text-base font-bold text-white">{selectedSummary.durationMinutes}</span>
               <span className="text-[11px] text-[#8E8E93]">分</span>
             </div>
             <span className="text-[11px] text-[#707077] block mt-0.5">训练时长</span>
           </div>
           <div>
             <div className="flex items-baseline space-x-0.5">
-              <span className="text-base font-bold text-white">100%</span>
+              <span className="text-base font-bold text-white">{Math.round(selectedSummary.completionRate * 100)}%</span>
             </div>
             <span className="text-[11px] text-[#707077] block mt-0.5">计划完成率</span>
           </div>
@@ -814,7 +411,7 @@ export const RecordsView: React.FC<RecordsViewProps> = ({ bodyFeedbacks, onOpenC
           </span>
         </div>
         <div className="space-y-2.5">
-          {bodyFeedbacks.map((item) => (
+          {displayBodyFeedbacks.map((item) => (
             <div
               key={item.id}
               onClick={() => onOpenCoachWithFeedback?.(item)}
@@ -849,11 +446,16 @@ export const RecordsView: React.FC<RecordsViewProps> = ({ bodyFeedbacks, onOpenC
               </div>
             </div>
           ))}
+          {!displayBodyFeedbacks.length && (
+            <p className="py-2 text-center text-[11px] text-neutral-500">
+              {recordsData.bodyFeedback?.warning || '暂无身体反馈记录'}
+            </p>
+          )}
         </div>
       </section>
 
       {/* Multi-Exercise Progressive Overload Trend Tracker (Integrated with Strength Progress) */}
-      <section className="bg-[#141416] rounded-2xl p-4 border border-[#222226] space-y-3">
+      {activeTrend ? <section className="bg-[#141416] rounded-2xl p-4 border border-[#222226] space-y-3">
         {/* Header & Exercise Switcher */}
         <div>
           <div className="flex justify-between items-start mb-2">
@@ -876,22 +478,18 @@ export const RecordsView: React.FC<RecordsViewProps> = ({ bodyFeedbacks, onOpenC
 
           {/* Exercise Switcher: Exactly 3 Core Tabs + 1 "More" Button fitting the screen width without overflow */}
           <div className="grid grid-cols-4 gap-1.5 pt-1">
-            {[
-              { key: 'bench', label: '卧推' },
-              { key: 'row', label: '划船' },
-              { key: 'legpress', label: '腿举' },
-            ].map((tab) => (
+            {primaryTrendEntries.map(([key, trend]) => (
               <button
-                key={tab.key}
+                key={key}
                 type="button"
-                onClick={() => setSelectedTrendExercise(tab.key)}
+                onClick={() => setSelectedTrendExercise(key)}
                 className={`text-xs py-1.5 rounded-lg transition-all cursor-pointer font-medium text-center truncate ${
-                  selectedTrendExercise === tab.key
+                  selectedTrendExercise === key
                     ? 'bg-[#A4FF4F] text-black font-bold shadow-sm'
                     : 'bg-[#1C1C20] text-neutral-400 hover:text-white hover:bg-[#25252B]'
                 }`}
               >
-                {tab.label}
+                {trend.name}
               </button>
             ))}
 
@@ -900,13 +498,13 @@ export const RecordsView: React.FC<RecordsViewProps> = ({ bodyFeedbacks, onOpenC
               type="button"
               onClick={() => setShowExercisePickerModal(true)}
               className={`text-xs py-1.5 px-1 rounded-lg transition-all cursor-pointer font-medium flex items-center justify-center gap-1 border text-center truncate ${
-                !['bench', 'row', 'legpress'].includes(selectedTrendExercise)
+                !primaryTrendKeys.includes(selectedTrendExercise)
                   ? 'bg-[#A4FF4F]/20 text-[#A4FF4F] border-[#A4FF4F]/50 font-bold'
                   : 'bg-[#1C1C20] text-neutral-300 border-white/10 hover:border-white/30'
               }`}
             >
               <span className="truncate">
-                {!['bench', 'row', 'legpress'].includes(selectedTrendExercise)
+                {!primaryTrendKeys.includes(selectedTrendExercise)
                   ? (activeTrend.name.length > 4 ? activeTrend.name.slice(0, 4) : activeTrend.name)
                   : '更多'}
               </span>
@@ -988,7 +586,11 @@ export const RecordsView: React.FC<RecordsViewProps> = ({ bodyFeedbacks, onOpenC
             </div>
           );
         })()}
-      </section>
+      </section> : (
+        <section className="bg-[#141416] rounded-2xl p-4 border border-[#222226] text-xs text-neutral-500 text-center">
+          当前周期暂无可用于力量趋势的已完成训练组
+        </section>
+      )}
 
       {/* Workout Heatmap & Body Weight (With Horizontally Scrollable Heatmap) */}
       <section className="bg-[#141416] rounded-2xl p-4 border border-[#222226] space-y-4">
@@ -1025,40 +627,24 @@ export const RecordsView: React.FC<RecordsViewProps> = ({ bodyFeedbacks, onOpenC
               <div className="flex flex-col gap-1 min-w-max pb-1">
                 {/* Months Header row */}
                 <div className="flex text-[10px] text-neutral-400 font-mono mb-1 select-none">
-                  <span className="w-[84px]">4月</span>
-                  <span className="w-[84px]">5月</span>
-                  <span className="w-[84px]">6月</span>
-                  <span className="w-[84px]">7月</span>
-                  <span className="w-[84px]">8月</span>
-                  <span className="w-[60px] text-[#A4FF4F] font-semibold">9月(当前)</span>
+                  {heatmap.months.map((month, index) => (
+                    <span key={`${month.label}-${index}`} style={{ width: `${month.weeks * 18}px` }} className={index === heatmap.months.length - 1 ? 'text-[#A4FF4F] font-semibold' : ''}>
+                      {month.label}{index === heatmap.months.length - 1 ? '(当前)' : ''}
+                    </span>
+                  ))}
                 </div>
 
                 {/* 7 rows for Mon-Sun */}
-                {[
-                  // Mon
-                  [0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1],
-                  // Tue
-                  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                  // Wed
-                  [1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1],
-                  // Thu
-                  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                  // Fri
-                  [0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 2],
-                  // Sat
-                  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                  // Sun
-                  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                ].map((row, dayIdx) => (
+                {heatmap.rows.map((row, dayIdx) => (
                   <div key={dayIdx} className="flex gap-1.5">
-                    {row.map((val, weekIdx) => (
+                    {row.map((cell, weekIdx) => (
                       <div
                         key={weekIdx}
-                        title={val === 2 ? '高光突破日 (PR) · 12组' : val === 1 ? '训练完成 · 12组' : '休息日'}
+                        title={cell.value === 2 ? `${cell.date} · 高光训练 · ${cell.sets}组` : cell.value === 1 ? `${cell.date} · 训练完成 · ${cell.sets}组` : `${cell.date} · 休息日`}
                         className={`w-3 h-3 rounded-[2.5px] transition-all cursor-pointer hover:scale-125 ${
-                          val === 2
+                          cell.value === 2
                             ? 'bg-[#A4FF4F] shadow-[0_0_6px_rgba(164,255,79,0.8)] ring-1 ring-white'
-                            : val === 1
+                            : cell.value === 1
                             ? 'bg-[#A4FF4F]/75 hover:bg-[#A4FF4F]'
                             : 'bg-[#202024] hover:bg-[#2A2A30]'
                         }`}
@@ -1071,7 +657,7 @@ export const RecordsView: React.FC<RecordsViewProps> = ({ bodyFeedbacks, onOpenC
 
             <div className="flex justify-between items-center text-[10px] text-neutral-500 pt-1">
               <span>◂ 向左滑动回溯春季</span>
-              <span className="font-mono text-[#A4FF4F]">总出勤 58 次 · 保持良好</span>
+              <span className="font-mono text-[#A4FF4F]">总出勤 {heatmap.totalAttendance} 次</span>
             </div>
           </div>
         </div>
@@ -1083,17 +669,19 @@ export const RecordsView: React.FC<RecordsViewProps> = ({ bodyFeedbacks, onOpenC
               <div className="flex items-center gap-1.5">
                 <span className="text-xs text-[#8E8E93] whitespace-nowrap">体重追踪</span>
                 <span className="text-[9px] text-neutral-400 bg-white/5 px-1.5 py-0.5 rounded font-mono whitespace-nowrap">
-                  最新: {activeWeightDataset.points[activeWeightDataset.points.length - 1]?.date || '09/07'}
+                  最新: {activeWeightDataset.points[activeWeightDataset.points.length - 1]?.date || '--'}
                 </span>
               </div>
               {/* Guaranteed Single Line Display */}
               <div className="flex items-baseline gap-1.5 mt-0.5 whitespace-nowrap">
                 <span className="text-lg font-bold text-white tracking-tight font-mono whitespace-nowrap">
-                  {currentWeight.toFixed(1)} <span className="text-xs text-neutral-400 font-normal">kg</span>
+                  {currentWeight?.toFixed(1) ?? '--'} <span className="text-xs text-neutral-400 font-normal">kg</span>
                 </span>
-                <span className="text-xs font-semibold text-[#A4FF4F] font-mono whitespace-nowrap">
-                  ({activeWeightDataset.label} {(currentWeight - activeWeightDataset.baseline) > 0 ? `+${(currentWeight - activeWeightDataset.baseline).toFixed(1)}` : (currentWeight - activeWeightDataset.baseline).toFixed(1)}kg)
-                </span>
+                {currentWeight != null && activeWeightDataset.points.length > 0 && (
+                  <span className="text-xs font-semibold text-[#A4FF4F] font-mono whitespace-nowrap">
+                    ({activeWeightDataset.label} {currentWeight - activeWeightDataset.baseline > 0 ? '+' : ''}{(currentWeight - activeWeightDataset.baseline).toFixed(1)}kg)
+                  </span>
+                )}
               </div>
             </div>
 
@@ -1102,7 +690,7 @@ export const RecordsView: React.FC<RecordsViewProps> = ({ bodyFeedbacks, onOpenC
               <button
                 type="button"
                 onClick={() => {
-                  setInputWeight(currentWeight.toFixed(1));
+                  setInputWeight(currentWeight?.toFixed(1) ?? '');
                   setShowWeightModal(true);
                 }}
                 className="text-xs font-semibold text-[#A4FF4F] bg-[#A4FF4F]/15 hover:bg-[#A4FF4F]/25 border border-[#A4FF4F]/30 px-3 py-1.5 rounded-xl cursor-pointer transition-all flex items-center gap-1 shrink-0 whitespace-nowrap"
@@ -1112,6 +700,12 @@ export const RecordsView: React.FC<RecordsViewProps> = ({ bodyFeedbacks, onOpenC
             </div>
           </div>
 
+          {(bodyWeight.warning || bodyWeight.error) && (
+            <p className={`text-[10px] ${bodyWeight.error ? 'text-red-300' : 'text-neutral-500'}`}>
+              {bodyWeight.error || bodyWeight.warning}
+            </p>
+          )}
+
           {/* Full-width Weight Trend Line Chart with Period Switcher */}
           <div className="bg-[#18181B] rounded-xl p-3 border border-white/5 space-y-2.5">
             {/* Header: Title + Period Selector Pills */}
@@ -1119,7 +713,9 @@ export const RecordsView: React.FC<RecordsViewProps> = ({ bodyFeedbacks, onOpenC
               <div className="flex items-center gap-2">
                 <span className="text-xs font-medium text-white">{activeWeightDataset.label}走势曲线</span>
                 <span className="text-[10px] text-neutral-400 font-mono">
-                  高: {Math.max(...activeWeightDataset.points.map(l => l.weight)).toFixed(1)} · 低: {Math.min(...activeWeightDataset.points.map(l => l.weight)).toFixed(1)}kg
+                  {activeWeightDataset.points.length
+                    ? `高: ${Math.max(...activeWeightDataset.points.map((point) => point.weight)).toFixed(1)} · 低: ${Math.min(...activeWeightDataset.points.map((point) => point.weight)).toFixed(1)}kg`
+                    : '暂无记录'}
                 </span>
               </div>
 
@@ -1170,7 +766,7 @@ export const RecordsView: React.FC<RecordsViewProps> = ({ bodyFeedbacks, onOpenC
               <div className="absolute left-12 right-2 bottom-2 border-b border-dashed border-white/5 pointer-events-none" />
 
               {/* Calculations for Smooth Spline & Coordinates */}
-              {(() => {
+              {activeWeightDataset.points.length ? (() => {
                 const total = activeWeightDataset.points.length;
                 const minW = activeWeightDataset.yMin;
                 const maxW = activeWeightDataset.yMax;
@@ -1254,7 +850,11 @@ export const RecordsView: React.FC<RecordsViewProps> = ({ bodyFeedbacks, onOpenC
                     })}
                   </>
                 );
-              })()}
+              })() : (
+                <div className="h-full flex items-center justify-center text-[11px] text-neutral-500">
+                  {bodyWeight.loading ? '正在加载体重记录…' : '暂无体重记录'}
+                </div>
+              )}
 
               {/* Active Point Floating Tooltip if Selected */}
               {activeWeightPointIdx !== null && activeWeightDataset.points[activeWeightPointIdx] && (
@@ -1303,8 +903,8 @@ export const RecordsView: React.FC<RecordsViewProps> = ({ bodyFeedbacks, onOpenC
 
             {/* Categorized List */}
             <div className="overflow-y-auto space-y-3 pr-1">
-              {(['胸部', '背部', '腿部', '肩部', '手臂'] as const).map((muscleGroup) => {
-                const groupExercises = Object.entries(overloadTrends).filter(
+              {trendCategories.map((muscleGroup) => {
+                const groupExercises = trendEntries.filter(
                   ([_, ex]) => ex.category === muscleGroup
                 );
                 if (groupExercises.length === 0) return null;
@@ -1433,6 +1033,10 @@ export const RecordsView: React.FC<RecordsViewProps> = ({ bodyFeedbacks, onOpenC
               </div>
             </div>
 
+            {bodyWeight.error && (
+              <p className="text-center text-[11px] text-red-300">{bodyWeight.error}</p>
+            )}
+
             {/* Action Buttons */}
             <div className="flex gap-2 pt-1">
               <button
@@ -1445,9 +1049,10 @@ export const RecordsView: React.FC<RecordsViewProps> = ({ bodyFeedbacks, onOpenC
               <button
                 type="button"
                 onClick={handleSaveWeight}
-                className="flex-1 py-2.5 rounded-xl bg-[#A4FF4F] hover:bg-[#92EE40] text-black text-xs font-bold transition cursor-pointer shadow-sm"
+                disabled={bodyWeight.saving || !Number.isFinite(Number.parseFloat(inputWeight)) || Number.parseFloat(inputWeight) <= 30 || Number.parseFloat(inputWeight) >= 250}
+                className="flex-1 py-2.5 rounded-xl bg-[#A4FF4F] hover:bg-[#92EE40] text-black text-xs font-bold transition cursor-pointer shadow-sm disabled:opacity-50"
               >
-                确认打卡
+                {bodyWeight.saving ? '保存中…' : '确认打卡'}
               </button>
             </div>
           </div>

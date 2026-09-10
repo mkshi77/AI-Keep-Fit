@@ -1,14 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChatMessage, BodyFeedbackRecord } from '../types';
+import { ChatMessage } from '../types';
 
 interface CoachViewProps {
   messages: ChatMessage[];
   onSendMessage: (text: string) => Promise<void>;
-  onConfirmFeedback: (msgId: string, feedback: { exercise: string; location: string; discomfortLevel: string; note: string }) => void;
+  onConfirmFeedback: (msgId: string, feedback: NonNullable<ChatMessage['proposedFeedback']>) => void;
+  onDismissFeedback: (msgId: string) => void;
   onNewChat: () => void;
   onBack?: () => void;
   currentWorkoutContext?: {
-    currentExercise: string;
+    currentExercise?: string;
     currentSet: number;
     totalSets: number;
   };
@@ -18,19 +19,17 @@ export const CoachView: React.FC<CoachViewProps> = ({
   messages,
   onSendMessage,
   onConfirmFeedback,
+  onDismissFeedback,
   onNewChat,
   onBack,
-  currentWorkoutContext = {
-    currentExercise: '坐姿绳索划船',
-    currentSet: 6,
-    totalSets: 12,
-  },
+  currentWorkoutContext,
 }) => {
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState('');
+  const [voiceError, setVoiceError] = useState('');
   const [recognitionInstance, setRecognitionInstance] = useState<any>(null);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -59,6 +58,7 @@ export const CoachView: React.FC<CoachViewProps> = ({
   const startVoiceRecording = () => {
     setIsVoiceModalOpen(true);
     setVoiceTranscript('');
+    setVoiceError('');
     setIsListening(true);
 
     if (navigator.vibrate) {
@@ -66,11 +66,8 @@ export const CoachView: React.FC<CoachViewProps> = ({
     }
 
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      // Speech recognition not available or blocked in sandbox, fallback with standard preset prompt
-      setTimeout(() => {
-        setVoiceTranscript('当前动作最后一组完成得比较轻松，下组建议加重多少？');
-        setIsListening(false);
-      }, 1500);
+      setVoiceError('当前浏览器不支持语音识别，请使用文字输入。');
+      setIsListening(false);
       return;
     }
 
@@ -90,6 +87,7 @@ export const CoachView: React.FC<CoachViewProps> = ({
       };
 
       recognition.onerror = () => {
+        setVoiceError('语音识别失败，请重试或使用文字输入。');
         setIsListening(false);
       };
 
@@ -101,7 +99,7 @@ export const CoachView: React.FC<CoachViewProps> = ({
       setRecognitionInstance(recognition);
     } catch (err) {
       setIsListening(false);
-      setVoiceTranscript('今天划船右肩前侧微酸，需要调整握距吗？');
+      setVoiceError('语音识别启动失败，请使用文字输入。');
     }
   };
 
@@ -186,7 +184,9 @@ export const CoachView: React.FC<CoachViewProps> = ({
           <div className="flex items-center gap-2 overflow-hidden text-[12.5px]">
             <span className="inline-block w-2 h-2 rounded-full bg-[#A4FF4F] animate-pulse shrink-0" />
             <span className="text-[#D1D1D6] truncate">
-              训练进行中 · <span className="text-white font-medium">{currentWorkoutContext.currentSet}/{currentWorkoutContext.totalSets} 组</span> · 当前：<span className="text-white font-medium">{currentWorkoutContext.currentExercise}</span>
+              {currentWorkoutContext?.currentExercise && currentWorkoutContext.totalSets > 0 ? (
+                <>训练进行中 · <span className="text-white font-medium">{currentWorkoutContext.currentSet}/{currentWorkoutContext.totalSets} 组</span> · 当前：<span className="text-white font-medium">{currentWorkoutContext.currentExercise}</span></>
+              ) : '当前无进行中的训练'}
             </span>
           </div>
           <span className="text-[10px] font-bold tracking-widest text-[#A4FF4F] shrink-0 ml-2">
@@ -231,15 +231,15 @@ export const CoachView: React.FC<CoachViewProps> = ({
                     <div className="space-y-2 text-[12.5px]">
                       <div className="flex justify-between items-center">
                         <span className="text-neutral-400 font-normal">动作</span>
-                        <span className="text-white font-medium">{msg.proposedFeedback.exercise}</span>
+                        <span className="text-white font-medium">{msg.proposedFeedback.exerciseName || '未关联动作'}</span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-neutral-400 font-normal">位置</span>
-                        <span className="text-white font-medium">{msg.proposedFeedback.location}</span>
+                        <span className="text-white font-medium">{msg.proposedFeedback.bodyPart}</span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-neutral-400 font-normal">不适程度</span>
-                        <span className="text-[#A4FF4F] font-bold">{msg.proposedFeedback.discomfortLevel}</span>
+                        <span className="text-[#A4FF4F] font-bold">{msg.proposedFeedback.score} / 10</span>
                       </div>
                       <div className="flex justify-between items-start pt-0.5">
                         <span className="text-neutral-400 font-normal shrink-0">备注</span>
@@ -252,12 +252,7 @@ export const CoachView: React.FC<CoachViewProps> = ({
                     {/* Action buttons */}
                     <div className="flex items-center gap-2 mt-3.5 pt-2.5 border-t border-white/10">
                       <button
-                        onClick={() =>
-                          onConfirmFeedback(msg.id, {
-                            ...msg.proposedFeedback!,
-                            discomfortLevel: '0 / 10',
-                          })
-                        }
+                        onClick={() => onDismissFeedback(msg.id)}
                         className="flex-1 py-1.5 text-center text-[12px] font-medium text-neutral-400 bg-[#141416] hover:bg-[#252528] rounded-lg active:scale-95 transition cursor-pointer"
                         type="button"
                       >
@@ -274,6 +269,12 @@ export const CoachView: React.FC<CoachViewProps> = ({
                   </div>
                 )}
 
+                {msg.feedbackError && (
+                  <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-200">
+                    写入失败：{msg.feedbackError}
+                  </div>
+                )}
+
                 {/* Recorded State Banner */}
                 {msg.isFeedbackRecorded && (
                   <div className="bg-[#193214] border border-[#2D5A24] rounded-xl px-3 py-2 flex items-center justify-between shadow-sm animate-fadeIn">
@@ -286,7 +287,7 @@ export const CoachView: React.FC<CoachViewProps> = ({
                       <div>
                         <div className="text-[12px] font-semibold text-[#A4FF4F]">已记录到训练反馈</div>
                         <div className="text-[10px] text-neutral-400 mt-0.5">
-                          {msg.proposedFeedback?.exercise || '坐姿绳索划船'} · {msg.proposedFeedback?.location || '右肩前侧'} · {msg.proposedFeedback?.discomfortLevel || '4/10'}
+                          {msg.proposedFeedback?.exerciseName || '未关联动作'} · {msg.proposedFeedback?.bodyPart} · {msg.proposedFeedback?.score}/10
                         </div>
                       </div>
                     </div>
@@ -472,6 +473,7 @@ export const CoachView: React.FC<CoachViewProps> = ({
               <span className="text-[11px] text-neutral-400">
                 {isListening ? '请对准麦克风说话，AI 教练实时转写' : '点击下方快捷提问或重试录音'}
               </span>
+              {voiceError && <span className="text-[10px] text-red-300">{voiceError}</span>}
             </div>
 
             {/* Recognized Text Display */}
@@ -545,20 +547,15 @@ export const CoachView: React.FC<CoachViewProps> = ({
               </button>
             </div>
             <div className="space-y-2 max-h-60 overflow-y-auto no-scrollbar text-xs">
-              <div className="p-2.5 rounded-lg bg-[#141416] border border-white/5 space-y-1">
-                <div className="flex justify-between text-neutral-400 text-[10px]">
-                  <span>09/07 训练问答</span>
-                  <span className="text-[#A4FF4F]">进行中</span>
+              {messages.map((message) => (
+                <div key={message.id} className="p-2.5 rounded-lg bg-[#141416] border border-white/5 space-y-1">
+                  <div className="flex justify-between text-neutral-400 text-[10px]">
+                    <span>{message.time}</span>
+                    <span>{message.role === 'user' ? '我' : 'AI 教练'}</span>
+                  </div>
+                  <div className="text-neutral-300 line-clamp-2">{message.text}</div>
                 </div>
-                <div className="text-white font-medium">坐姿绳索划船 · 肩前侧不适指导</div>
-              </div>
-              <div className="p-2.5 rounded-lg bg-[#141416] border border-white/5 space-y-1">
-                <div className="flex justify-between text-neutral-400 text-[10px]">
-                  <span>09/05 卧推策略</span>
-                  <span>已归档</span>
-                </div>
-                <div className="text-neutral-300">史密斯卧推 40kg 达到 RIR 2 确认</div>
-              </div>
+              ))}
             </div>
             <button
               onClick={() => setShowHistoryModal(false)}

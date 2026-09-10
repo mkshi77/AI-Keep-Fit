@@ -16,7 +16,7 @@ const request = async <T>(path: string, token: string, init: RequestInit = {}): 
 };
 
 export const retrieveDataSource = (id: string, token: string) => request<NotionDataSource>(`/data_sources/${id}`, token);
-export const queryDataSource = async (id: string, token: string, body: Record<string, unknown>) => {
+export const queryDataSource = async (id: string, token: string, body: Record<string, unknown>, maxRecords = Number.POSITIVE_INFINITY) => {
   const pages: NotionPage[] = [];
   let cursor: string | undefined;
   do {
@@ -24,12 +24,14 @@ export const queryDataSource = async (id: string, token: string, body: Record<st
       method: 'POST', body: JSON.stringify({ ...body, ...(cursor ? { start_cursor: cursor } : {}), page_size: 100 }),
     });
     pages.push(...result.results);
-    cursor = result.has_more ? result.next_cursor : undefined;
+    cursor = result.has_more && pages.length < maxRecords ? result.next_cursor : undefined;
   } while (cursor);
-  return pages;
+  return pages.slice(0, maxRecords);
 };
 export const updatePageProperties = (pageId: string, token: string, properties: Record<string, unknown>) =>
   request(`/pages/${pageId}`, token, { method: 'PATCH', body: JSON.stringify({ properties }) });
+export const createDataSourcePage = (dataSourceId: string, token: string, properties: Record<string, unknown>) =>
+  request<NotionPage>('/pages', token, { method: 'POST', body: JSON.stringify({ parent: { data_source_id: dataSourceId }, properties }) });
 
 const text = (value: unknown): string => Array.isArray(value) ? value.map((item) => item && typeof item === 'object' && 'plain_text' in item ? String(item.plain_text ?? '') : '').join('') : '';
 export const propertyString = (property?: NotionProperty): string => {
