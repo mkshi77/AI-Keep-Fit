@@ -27,8 +27,8 @@ integration/phase-5-ai-maintenance
 - [x] Remove fixed dates, goals, workout facts, PR badges, and review copy from Production UI
 - [x] Add unit tests
 - [x] Run lint/test/build
-- [ ] Deploy Preview and execute authenticated Staging E2E
-- [ ] Create and review Phase 5 PR
+- [x] Deploy Preview and execute authenticated Staging E2E
+- [x] Create and review Phase 5 PR
 - [ ] Merge to integration/full-version
 
 ## Architecture Decisions
@@ -122,6 +122,13 @@ Phase 4 authenticated Staging E2E PASS on Vercel Preview `dpl_HA9J9u42NAtZC5JeEq
 - The synthetic training row and library candidate were moved to Notion trash using the 2026-03-11 `in_trash` contract.
 - The known Phase 3 synthetic Body Feedback verification record was also moved to trash; no synthetic records remain active.
 - The fixture endpoint was removed before the final Phase 4 deployment and is not part of Git history.
+
+Phase 5 authenticated Staging E2E PASS on Vercel Preview `dpl_2DWU2DJrMMk2R3irVfz1Cpk8soGq`.
+- The current-week response was derived from normalized Staging history and returned seven real calendar dates without fixed targets or mock workout facts.
+- Staging reported one planned and one trained session for the current week, plus a grounded 09/08 training insight.
+- Live Gemini review accepted an explicitly synthetic, non-persisted training summary and returned a bounded review with two future-plan actions.
+- The future plan remained advisory; no Notion record or training plan was written or modified.
+- Preview authentication remained branch-scoped, and the temporary local Cookie was deleted after verification.
 
 ## Open Risks
 - Historical snapshot fields may be absent in legacy records.
