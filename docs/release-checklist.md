@@ -4,7 +4,7 @@
 - [x] Phase 2A - History Foundation
 - [x] Phase 2B - Records / Analytics
 - [x] Phase 2C - Body Weight
-- [ ] Phase 3 - AI Coach
+- [x] Phase 3 - AI Coach
 - [ ] Phase 4 - Replacement + Risk Engine
 - [ ] Phase 5 - AI Maintenance + Future Plan
 - [ ] Phase 6 - Release Hardening

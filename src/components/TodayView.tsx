@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Exercise, BodyFeedbackRecord } from '../types';
+import { Exercise } from '../types';
 import { ExerciseModal } from './ExerciseModal';
 import { ReplaceExerciseModal } from './ReplaceExerciseModal';
 import type { TodayWorkout } from '../domain/workout';
+import type { WorkoutSafetyResult } from '../domain/replacementRisk';
 
 interface TodayViewProps {
   exercises: Exercise[];
@@ -10,7 +11,8 @@ interface TodayViewProps {
   isLoading?: boolean;
   error?: string;
   onRetry?: () => void;
-  bodyFeedbacks?: BodyFeedbackRecord[];
+  safety?: WorkoutSafetyResult;
+  replacementOptions?: Record<string, Exercise[]>;
   onStartWorkout: () => void;
   isTodayCompleted?: boolean;
   onViewSummary?: () => void;
@@ -24,7 +26,8 @@ export const TodayView: React.FC<TodayViewProps> = ({
   isLoading = false,
   error = '',
   onRetry,
-  bodyFeedbacks = [],
+  safety,
+  replacementOptions = {},
   onStartWorkout,
   isTodayCompleted = false,
   onViewSummary,
@@ -37,10 +40,11 @@ export const TodayView: React.FC<TodayViewProps> = ({
   const muscles = [...new Set(exercises.map((exercise) => exercise.targetMuscle).filter(Boolean))].join(' · ');
   const formattedDate = workout?.date ? new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: 'numeric', weekday: 'short' }).format(new Date(`${workout.date}T12:00:00`)) : '今日';
 
-  // Check if any recent body feedback has discomfort (score >= 3/10)
-  const hasInjuryFeedback = bodyFeedbacks.some((fb) =>
-    fb.score.includes('4') || fb.score.includes('5') || fb.score.includes('6')
-  );
+  const primaryRisk = safety?.risk.signals[0];
+  const affectedExercise = primaryRisk?.exerciseId
+    ? exercises.find((exercise) => exercise.id === primaryRisk.exerciseId)
+    : undefined;
+  const canReplaceAffectedExercise = Boolean(affectedExercise && replacementOptions[affectedExercise.id]?.length);
 
   return (
     <div className="flex-1 flex flex-col overflow-y-auto no-scrollbar px-5 pt-1 pb-28 select-none relative">
@@ -113,8 +117,8 @@ export const TodayView: React.FC<TodayViewProps> = ({
           </div>
         </div>
 
-        {/* AI 避让联动提醒 (如果记录中有不适反馈且今日未完成) */}
-        {hasInjuryFeedback && !isTodayCompleted && (
+        {/* Grounded risk reminder derived from normalized feedback/history */}
+        {primaryRisk && !isTodayCompleted && (
           <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
@@ -122,21 +126,23 @@ export const TodayView: React.FC<TodayViewProps> = ({
                 <span className="text-xs font-bold text-amber-300">AI 智能防护避让提醒</span>
               </div>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-medium">
-                已关联右肩不适 (4/10)
+                {primaryRisk.label}
               </span>
             </div>
             <p className="text-[12px] text-neutral-300 leading-relaxed">
-              检测到你上次记录了「右肩前侧轻微不适」。今日卧推建议微收握距，或一键替换为更护肩的中立握推胸。
+              {primaryRisk.message}
             </p>
             <div className="flex items-center gap-2 pt-0.5">
-              <button
-                onClick={() => exercises[0] && setReplacingExercise(exercises[0])}
-                className="text-[11px] py-1 px-2.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-black font-semibold transition active:scale-95 cursor-pointer"
-                type="button"
-              >
-                一键换为中立握推胸 →
-              </button>
-              <span className="text-[11px] text-neutral-400">或正常热身观察</span>
+              {canReplaceAffectedExercise && affectedExercise && (
+                <button
+                  onClick={() => setReplacingExercise(affectedExercise)}
+                  className="text-[11px] py-1 px-2.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-black font-semibold transition active:scale-95 cursor-pointer"
+                  type="button"
+                >
+                  查看同肌群替代 →
+                </button>
+              )}
+              <span className="text-[11px] text-neutral-400">如症状加重请停止训练</span>
             </div>
           </div>
         )}
@@ -363,6 +369,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
       <ReplaceExerciseModal
         exercise={replacingExercise}
         isOpen={Boolean(replacingExercise)}
+        alternatives={replacingExercise ? replacementOptions[replacingExercise.id] ?? [] : []}
         onClose={() => setReplacingExercise(null)}
         onSelectAlternative={(newEx) => {
           if (replacingExercise && onReplaceExercise) {
